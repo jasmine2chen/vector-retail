@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic>=2.0
+pydantic-settings
+langchain
+langchain-openai
+langgraph
+python-dotenv
+structlog
+pytest
