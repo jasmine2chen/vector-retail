@@ -1,0 +1,62 @@
+{
+  "_comment": "vector-retail policy configuration. All thresholds are versioned here. No magic numbers in application code.",
+  "version": "2.0.0",
+  "effective_date": "2026-01-01",
+  "reviewed_by": "compliance",
+
+  "trade_value_hitl_threshold_usd": 25000,
+
+  "max_single_position_pct": {
+    "conservative": 0.05,
+    "moderate": 0.10,
+    "aggressive": 0.20
+  },
+
+  "max_sector_exposure_pct": {
+    "conservative": 0.15,
+    "moderate": 0.25,
+    "aggressive": 0.40
+  },
+
+  "min_cash_buffer_pct": {
+    "conservative": 0.10,
+    "moderate": 0.05,
+    "aggressive": 0.02
+  },
+
+  "target_allocations": {
+    "conservative": { "equity": 0.40, "fixed_income": 0.50, "cash": 0.10 },
+    "moderate":     { "equity": 0.60, "fixed_income": 0.30, "cash": 0.10 },
+    "aggressive":   { "equity": 0.80, "fixed_income": 0.15, "cash": 0.05 }
+  },
+
+  "data_staleness_seconds": 300,
+  "cross_ref_divergence_threshold": 0.02,
+  "min_confidence_for_auto_response": 0.75,
+  "shadow_eval_sample_rate": 0.10,
+
+  "rebalance_drift_trigger_pct": 0.05,
+
+  "tax_loss_harvest_min_usd": 500,
+  "wash_sale_window_days": 30,
+  "long_term_holding_days": 365,
+
+  "confidence_penalties": {
+    "stale_quote":            0.90,
+    "missing_quote":          0.85,
+    "llm_failure":            0.70,
+    "policy_violation":       0.80,
+    "insufficient_data":      0.85,
+    "var_computation_failed": 0.75,
+    "date_parse_failure":     0.90,
+    "hitl_trade_flagged":     0.88,
+    "missing_asset_class":    0.90
+  },
+
+  "hitl_sla_hours": {
+    "critical": 2,
+    "high": 4,
+    "medium": 8,
+    "low": 24
+  }
+}

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector-retail
+  labels:
+    app: vector-retail
+    version: "2.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vector-retail
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: vector-retail
+    spec:
+      containers:
+        - name: vector-retail
+          image: vector-retail:2.0.0
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vector-retail-secrets
+                  key: anthropic-api-key
+            - name: DEPLOYMENT_SLOT
+              value: "blue"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command: ["python", "scripts/healthcheck.py"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["python", "scripts/healthcheck.py"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
