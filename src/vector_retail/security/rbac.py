@@ -15,8 +15,8 @@ OWASP LLM Top 10 — LLM08: Excessive Agency mitigation.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 
@@ -26,7 +26,7 @@ log = structlog.get_logger("rbac")
 # Least-privilege: each role has the minimum set of permissions needed.
 # '*' means all permissions (admin only).
 
-ROLE_PERMISSIONS: Dict[str, List[str]] = {
+ROLE_PERMISSIONS: dict[str, list[str]] = {
     "retail_client": [
         "read_portfolio",
         "read_market",
@@ -60,7 +60,7 @@ class SecurityLayer:
         self.session_id = session_id
         self._log = log.bind(session_id=session_id)
 
-    def validate_jwt_stub(self, token: str) -> Dict[str, Any]:
+    def validate_jwt_stub(self, token: str) -> dict[str, Any]:
         """
         Validates an auth token and returns claims.
 
@@ -85,8 +85,8 @@ class SecurityLayer:
             "sub": "user_demo",
             "role": "retail_client",
             "iss": "vector-retail-auth",
-            "iat": datetime.now(timezone.utc).isoformat(),
-            "exp": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            "iat": datetime.now(UTC).isoformat(),
+            "exp": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         }
 
     def validate_permission(self, role: str, action: str) -> bool:

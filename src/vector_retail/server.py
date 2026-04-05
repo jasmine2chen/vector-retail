@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request, Security
@@ -23,10 +23,7 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from .core.enums import (
-    AccountType,
     DeploymentSlot,
-    Jurisdiction,
-    RiskTolerance,
 )
 from .core.models import PortfolioHolding, UserProfile
 from .orchestrator import VectorRetailAgent
@@ -35,7 +32,7 @@ log = structlog.get_logger("server")
 
 # ── Startup / shutdown ───────────────────────────────────────────────────────
 
-_agent: Optional[VectorRetailAgent] = None
+_agent: VectorRetailAgent | None = None
 
 
 @asynccontextmanager
@@ -78,7 +75,7 @@ api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
 
 async def verify_api_key(
-    api_key: Optional[str] = Security(api_key_header),
+    api_key: str | None = Security(api_key_header),
 ) -> str:
     """
     Validate the API key. In production, check against a database or
@@ -112,7 +109,7 @@ class AdviseRequest(BaseModel):
         example="How is my portfolio performing? Should I rebalance?",
     )
     user: UserProfile
-    holdings: List[HoldingRequest] = Field(..., min_length=1)
+    holdings: list[HoldingRequest] = Field(..., min_length=1)
 
     model_config = {"json_schema_extra": {
         "example": {
@@ -141,17 +138,17 @@ class AdviseRequest(BaseModel):
 
 class AdviseResponse(BaseModel):
     """POST /v1/advise response body."""
-    session_id: Optional[str] = None
-    response: Optional[str] = None
-    agent_confidences: Optional[Dict[str, float]] = None
-    meta_confidence: Optional[float] = None
+    session_id: str | None = None
+    response: str | None = None
+    agent_confidences: dict[str, float] | None = None
+    meta_confidence: float | None = None
     hitl_escalated: bool = False
-    policy_flags: List[str] = []
-    total_latency_ms: Optional[float] = None
-    policy_version: Optional[str] = None
-    audit_trail_length: Optional[int] = None
-    audit_chain_integrity: Optional[bool] = None
-    error: Optional[str] = None
+    policy_flags: list[str] = []
+    total_latency_ms: float | None = None
+    policy_version: str | None = None
+    audit_trail_length: int | None = None
+    audit_chain_integrity: bool | None = None
+    error: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -183,7 +180,7 @@ async def health():
     response_model=AdviseResponse,
     tags=["advisory"],
     summary="Run a full advisory session",
-    description="Executes all 5 specialist agents, meta-critic audit, "
+    description="Executes all 6 specialist agents (incl. FinBERT sentiment), meta-critic audit, "
     "HITL gate, and response synthesis.",
 )
 async def advise(
@@ -222,7 +219,7 @@ async def advise(
     )
 
     try:
-        result: Dict[str, Any] = _agent.run(
+        result: dict[str, Any] = _agent.run(
             user_query=body.query,
             user_profile=body.user,
             holdings=holdings,

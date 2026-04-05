@@ -6,6 +6,7 @@ from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
 from vector_retail.core.models import UserProfile
 from vector_retail.core.policy import PolicyEngine
 
+
 # Dummy audit function for testing
 def _noop_audit(event_type, action, outcome, metadata=None):
     pass

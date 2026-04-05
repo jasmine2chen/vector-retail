@@ -5,6 +5,7 @@ Unit tests for shadow evaluation scoring.
 from vector_retail.core.enums import DeploymentSlot
 from vector_retail.evaluation.shadow_eval import ShadowEvaluator
 
+
 def _noop_audit(*args, **kwargs):
     pass
 

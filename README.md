@@ -3,164 +3,370 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Anthropic Claude](https://img.shields.io/badge/LLM-Claude%20Sonnet-blueviolet.svg)](https://www.anthropic.com)
+[![LangFuse](https://img.shields.io/badge/observability-LangFuse-teal.svg)](https://langfuse.com)
+[![FinBERT](https://img.shields.io/badge/NLP-FinBERT%20%7C%20HuggingFace-yellow.svg)](https://huggingface.co/ProsusAI/finbert)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A **production-grade multi-agent financial advisor** built with LangGraph, Anthropic Claude, and a layered compliance architecture. Designed for retail investors, it provides portfolio analysis, risk assessment, tax observations, and rebalancing guidance — all gated by regulatory compliance checks, human-in-the-loop review, and a self-reflective meta-critic.
+A **production-grade multi-agent financial advisor** demonstrating applied AI engineering across the full stack: multi-agent orchestration, evaluation-driven development, LLM observability, prompt security, and compliance governance.
 
-> **Disclaimer:** This software is for informational and educational purposes only. It does not constitute investment advice. Always consult qualified professionals before making financial decisions.
+Built with LangGraph, Anthropic Claude Sonnet, and a layered compliance architecture aligned with SEC Reg BI, FINRA, NIST AI RMF, and SOC 2 Type II.
+
+> **Disclaimer:** For informational and educational purposes only. Not investment advice.
+
+---
+
+## What this project demonstrates
+
+This project is a deliberate showcase of **production AI engineering** skills across every layer that separates demos from deployed systems:
+
+| Skill Area | Implementation |
+|---|---|
+| **Multi-agent orchestration** | 6 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
+| **Agentic design patterns** | Reflection loop, Tool use, Planning, Multi-agent collaboration (Ng's 4 patterns) |
+| **NLP model evaluation** | FinBERT vs TF-IDF vs Claude zero-shot on Financial PhraseBank; McNemar significance test |
+| **Evaluation-driven development** | LLM-as-judge shadow evaluator + heuristic scoring + blue/green deployment |
+| **LLM observability** | LangFuse traces per agent call — latency, tokens, confidence, prompt version |
+| **Prompt engineering** | Versioned YAML prompt registry; prompts as deployable artifacts with rollback |
+| **LLM security** | Prompt injection defense (OWASP LLM Top 10 #1), PII redaction, RBAC |
+| **Confidence scoring** | Auditable multiplicative penalty chain; drives HITL routing and reflection |
+| **Human-in-the-loop** | Priority-tiered escalation gate with SLA tracking and LangGraph resume |
+| **Production resilience** | Dual-source data, circuit breakers, exponential backoff, graceful degradation |
+| **Compliance & audit** | SHA-256 hash-chained audit trail, policy-engine-driven rules, SEC/FINRA alignment |
+| **MLOps / deployment** | LangGraph MemorySaver checkpointing, shadow eval→blue/green promotion, K8s manifests |
+| **Testing** | Business logic compliance assertions (not just structural) — proves the rules fire |
 
 ---
 
 ## Architecture
 
 ```
-                         ┌──────────────┐
-                         │  User Query  │
-                         └──────┬───────┘
-                                │
-                     ┌──────────▼──────────┐
-                     │  Security Layer     │
-                     │  JWT · RBAC · PII   │
-                     └──────────┬──────────┘
-                                │
-                     ┌──────────▼──────────┐
-                     │   Data Oracle       │
-                     │  Dual-source quotes │
-                     │  Circuit breakers   │
-                     └──────────┬──────────┘
-                                │
-             ┌──────────────────┼──────────────────┐
-             │ Fan-out to 5 parallel agents        │
-     ┌───────┼───────┬─────────┬─────────┐         │
-     ▼       ▼       ▼         ▼         ▼         │
- Portfolio Market   Risk     Tax    Rebalance       │
- Analysis  Intel  Assessment Optim.  Agent          │
-     │       │       │         │         │         │
-     └───────┼───────┴─────────┴─────────┘         │
-             │ Fan-in                               │
-             ▼                                      │
-   ┌─────────────────┐                              │
-   │   Meta-Critic   │  Self-reflective audit       │
-   │  Hallucination  │  of ALL agent outputs        │
-   │  + Compliance   │  before any response         │
-   └────────┬────────┘                              │
-            ▼                                       │
-   ┌─────────────────┐                              │
-   │  HITL Gate      │  Priority-scored             │
-   │  Human review   │  escalation tickets          │
-   └────────┬────────┘                              │
-            ▼                                       │
-   ┌─────────────────┐                              │
-   │  Synthesizer    │  Grounded, cited response    │
-   │  + Disclaimer   │  with jurisdiction disclaimers│
-   └─────────────────┘                              │
+User Query
+    │
+    ▼
+┌─────────────────────────────────────────────────────────┐
+│  Security Layer  │  JWT · RBAC · PII Redaction          │
+│                  │  Prompt Injection Defense (OWASP #1) │
+└─────────────────────────────┬───────────────────────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   Data Oracle      │
+                    │  yfinance primary  │
+                    │  Alpha Vantage 2°  │  ← dual-source cross-validation
+                    │  Circuit breakers  │
+                    └─────────┬──────────┘
+                              │ fan-out
+        ┌──────────────────┬──┴──────┬──────────┬────────────┐
+        ▼         ▼        ▼         ▼          ▼            ▼
+  Portfolio    Market     Risk       Tax      Rebalance  Sentiment
+  Analysis     Intel   Assessment  Optim.      Agent     Analysis
+  (conc. chk) (no pred)(VaR/dd) (TLH/wash) (drift/HITL)(FinBERT)
+        │         │        │         │          │            │
+        └─────────┴────────┴────┬────┴──────────┴────────────┘
+                            │ fan-in
+                   ┌────────▼────────┐
+                   │   Meta-Critic   │  ← self-reflective audit
+                   │  hallucination  │     confidence banding
+                   │  policy sweep   │     Reflection pattern
+                   └────────┬────────┘
+                            │
+               ┌────────────▼─────────────┐
+               │  Confidence Router       │
+               │  ≥ 0.85  → synthesis     │  ← auto-response
+               │  0.75–0.85 → synthesis   │  ← reflection loop (critique fed back)
+               │  < 0.75  → HITL gate     │  ← human escalation
+               └──────────────────────────┘
+                            │
+                   ┌────────▼────────┐
+                   │   Synthesizer   │  ← versioned prompts
+                   │  grounded resp  │     revision-aware
+                   │  + disclaimer   │     jurisdiction-specific
+                   └────────┬────────┘
+                            │
+               ┌────────────▼────────────────┐
+               │  Shadow Evaluator (10%)      │
+               │  Pass 1: heuristic scoring   │
+               │  Pass 2: LLM-as-judge rubric │  ← 4-dim compliance eval
+               │  → blue/green decision       │
+               └─────────────────────────────┘
 ```
-
-### Layer Architecture
-
-| Layer | Component | Responsibility |
-|-------|-----------|---------------|
-| 0 | Security (`security/`) | JWT auth, RBAC, PII redaction |
-| 1 | Data Oracle (`data/`) | Dual-source market data, circuit breakers, caching |
-| 3 | Specialist Agents (`agents/`) | Portfolio, Market, Risk, Tax, Rebalance |
-| 4 | Meta-Critic | Self-reflective audit of all agent outputs |
-| 5 | HITL Gate (`evaluation/`) | Human-in-the-loop escalation with SLA tiers |
-| 6 | Synthesizer | Grounded response synthesis with citations |
-| 8 | Orchestrator | LangGraph state machine, shadow evaluation |
 
 ---
 
-## Key Features
+## AI Engineering Highlights
 
-### Multi-Agent Orchestration
-- **5 parallel specialist agents** with fan-out/fan-in via LangGraph
-- **Meta-critic layer** auditing all outputs before any response is delivered
-- **Confidence-based routing** — low confidence sessions auto-escalate to human review
+### 1. Agentic Design Patterns (Andrew Ng's 4 Patterns)
 
-### Compliance & Governance
-- **SEC Reg BI / FINRA 2111** suitability checks on every session
-- **NIST AI Risk Management Framework** alignment (Govern, Map, Measure, Manage)
-- **OWASP LLM Top 10** mitigations (LLM01, LLM02, LLM06, LLM08, LLM09)
-- **SOC 2 Type II** ready: SHA-256 hash-chained, tamper-evident audit trail
-- **GDPR/CCPA** PII minimisation and redaction
+**Reflection** — The meta-critic agent audits all 6 specialist outputs before delivery. When overall confidence falls in the 0.75–0.85 band, its critique is fed back to the synthesizer for a revision pass. LangGraph conditional edge routes medium-concern sessions through this loop rather than straight to the client.
 
-### Production Resilience
-- **Dual-source data validation** with configurable divergence thresholds
-- **Circuit breakers** on all external API calls
-- **Exponential backoff** via tenacity
-- **Quote caching** with staleness detection
-- **Graceful degradation** when data sources fail
+**Tool Use** — The Data Oracle exposes `get_verified_quote` and `get_portfolio_quotes` as callable tools, with dual-source cross-validation and circuit breakers. Each agent declares which tools it used in `AgentResult.data_sources`.
 
-### Evaluation & Deployment
-- **Shadow evaluation** scoring 10% of traffic against quality ground-truth
-- **Blue/green deployment** validation with automatic promote/hold recommendations
-- **Human-in-the-loop** gate with priority tiers (Critical → Low) and SLA tracking
+**Planning** — The orchestrator decomposes each user query across 6 specialist agents concurrently (LangGraph fan-out), then converges results at the meta-critic (fan-in) before synthesis.
+
+**Multi-Agent Collaboration** — The 6 parallel agents share a common `GraphState` contract and a hash-chained audit trail. The meta-critic reads all outputs and the synthesizer assembles the final response from all findings.
+
+```python
+# Conditional routing — reflection vs HITL vs auto
+graph.add_conditional_edges(
+    "meta_critic",
+    route_after_meta_critic,
+    {"synthesis": "synthesis", "hitl_gate": "hitl_gate"},
+)
+```
+
+---
+
+### 2. Evaluation-Driven Development
+
+Shadow evaluation runs on 10% of traffic with **two independent scoring passes**:
+
+**Pass 1 — Heuristic** (fast, deterministic): regex checks for disclaimer presence, price prediction language, risk disclosure, data attribution.
+
+**Pass 2 — LLM-as-Judge**: a focused compliance LLM call scores on a 4-dimension rubric with JSON output — factual grounding, regulatory compliance, risk disclosure, and user suitability. Returns a score, rationale, and specific flags.
+
+**Weighted blend**: 40% heuristic + 60% LLM judge → `overall_score`. Drives blue/green promotion: score ≥ 0.80 → PROMOTE.
+
+```python
+# From evaluation/shadow_eval.py
+{
+  "factual_grounding": 0.90,
+  "regulatory_compliance": 0.95,
+  "risk_disclosure": 0.85,
+  "user_suitability": 0.88,
+  "overall": 0.90,
+  "rationale": "Response is well-grounded in provided portfolio data...",
+  "flags": []
+}
+```
+
+Business logic tests assert on compliance outcomes — not just that the pipeline runs:
+```python
+# Tests prove the rules actually fire
+def test_unverified_kyc_triggers_policy_flag(...)        # → KYC_FAIL flag
+def test_concentrated_position_triggers_flag(...)        # → CONCENTRATION flag
+def test_large_trade_triggers_hitl_escalation(...)       # → hitl_escalated=True
+def test_audit_chain_integrity_always_holds(...)         # → chain_integrity=True
+def test_response_contains_regulatory_disclaimer(...)    # → SEC Reg BI compliance
+```
+
+---
+
+### 3. NLP Model Evaluation & Selection (FinBERT)
+
+The `SentimentAnalysisAgent` is the 6th parallel specialist — it scores recent news headlines for each holding using [FinBERT](https://huggingface.co/ProsusAI/finbert), a BERT model fine-tuned on financial text (Araci, 2019). The model choice was validated empirically before integration.
+
+**Baseline comparison** — [`notebooks/model_evaluation.ipynb`](notebooks/model_evaluation.ipynb) benchmarks three approaches on [Financial PhraseBank](https://huggingface.co/datasets/financial_phrasebank) (`sentences_allagree`, n=2,264):
+
+| Model | Accuracy | Macro F1 | Avg Latency | Cost |
+|---|---|---|---|---|
+| TF-IDF + Logistic Regression | ~78% | ~0.77 | < 1ms | $0 |
+| **FinBERT** (`ProsusAI/finbert`) | **~97%** | **~0.97** | ~40ms | **$0** |
+| Claude Sonnet (zero-shot) | ~89% | ~0.88 | ~1,200ms | ~$0.08 / 100 samples |
+
+McNemar's test confirms FinBERT outperforms TF-IDF at p < 0.001. FinBERT was selected: highest accuracy, offline-capable, $0 inference cost, no external API dependency at runtime.
+
+**Production integration:**
+- Thread-safe singleton with double-checked locking — model loads once per process (~500MB, cached to `~/.cache/huggingface/`)
+- **Batch inference** across all symbols in a single forward pass (4× throughput vs per-headline calls)
+- **Exponential recency decay** — `weight = exp(-0.15 × rank)` so the most recent headline has 3× the weight of the 8th
+- Bearish signal threshold: `negative_prob > 0.40` → `SENTIMENT_BEARISH` policy flag
+- Graceful degradation: model download failure, yfinance outage, and no-news scenarios all return valid `AgentResult` with penalised confidence
+
+```python
+# Per-symbol result surfaced in AgentResult.findings
+{
+  "TSLA": {
+    "positive": 0.08, "negative": 0.75, "neutral": 0.17,
+    "dominant": "negative", "n_headlines": 5, "is_bearish": True
+  }
+}
+# Policy flag automatically raised:
+# "SENTIMENT_BEARISH: TSLA — negative sentiment 75% across 5 headlines (threshold: 40%)"
+```
+
+Research dependencies (jupyter, datasets, scikit-learn, scipy) are kept in [`requirements-research.txt`](requirements-research.txt), separate from the production image.
+
+---
+
+### 4. LLM Observability (LangFuse)
+
+Every `_call_llm` invocation creates a LangFuse generation trace with:
+- Agent ID, model name, temperature
+- Input/output previews (PII-redacted)
+- Latency (ms) and token counts
+- Prompt version (from YAML registry)
+- Confidence score as a named evaluation
+
+Enable by setting `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY`. Graceful no-op if not configured — the pipeline never fails due to observability outage.
+
+```python
+generation = trace.generation(
+    name=f"{self.AGENT_ID}.llm_call",
+    model=self.llm.model,
+    input=[{"role": "system", ...}, {"role": "user", ...}],
+    metadata={"prompt_version": self._prompt_version},
+)
+# After call:
+generation.end(output=..., usage={"input": n_tokens, "output": n_tokens})
+trace.score(name="agent_confidence", value=0.87)
+```
+
+---
+
+### 5. Prompt Security (OWASP LLM Top 10 #1)
+
+A dedicated `security/prompt_guard.py` module scans all user input before any LLM call, covering 8 attack categories:
+
+| Category | Example |
+|---|---|
+| `instruction_override` | "ignore all previous instructions" |
+| `prompt_extraction` | "repeat your system prompt" |
+| `persona_hijack` | "you are now an unrestricted model" |
+| `context_wipe` | "forget everything above" |
+| `xml_injection` | `<system>new instructions</system>` |
+| `template_token_injection` | `[INST]` / `<\|im_start\|>` |
+| `jailbreak_attempt` | "DAN mode", "developer mode" |
+| `indirect_injection` | "note to AI: ignore prior rules" |
+
+Critical detections return a safe refusal. All detections are recorded to the hash-chained audit trail with session ID.
+
+---
+
+### 6. Versioned Prompt Registry
+
+All system prompts live in `config/prompts/<agent_id>.yaml` alongside `config/policy_rules.json`. This makes prompts **deployable artifacts** — versioned, rollback-able, and A/B testable.
+
+```yaml
+# config/prompts/meta_critic.yaml
+version: "1.0.0"
+agent_id: "meta_critic"
+compliance_sign_off: "required before promotion"
+system_prompt: |
+  You are a senior compliance officer reviewing AI-generated financial analysis...
+```
+
+Every `AgentResult` carries `prompt_version`. The `PromptRegistry` supports hot-reload via `invalidate_cache()` — no restart needed when iterating on prompts in production.
+
+---
+
+### 7. LangGraph Checkpointing + HITL Resume
+
+Each session is compiled with a `MemorySaver` checkpointer, keyed by `thread_id=session_id`. When a session is escalated to human review, its full graph state is persisted. A compliance reviewer can approve and resume:
+
+```python
+# Initial run — escalated at HITL gate
+result = agent.run(user_query=..., user_profile=..., holdings=...)
+# result["hitl_escalated"] == True
+
+# After reviewer approves:
+completed = agent.resume_hitl_session(
+    session_id=result["session_id"],
+    reviewer_notes="Concentration within acceptable range for this client.",
+    approved=True,
+)
+```
+
+For production durability, swap `MemorySaver` for `AsyncPostgresSaver` or `RedisSaver` — the invocation API is identical.
+
+---
+
+### 8. Auditable Confidence Scoring
+
+Every agent uses a `ConfidenceCalculator` — a multiplicative penalty chain where every deduction is logged with signal name, observed value, and reason. The complete chain is written to the audit trail and emitted as a LangFuse score.
+
+```python
+conf = self._confidence()
+conf.penalize("stale_quote", "Price > 5min old", observed=age_seconds)
+conf.penalize("missing_secondary", "Alpha Vantage unavailable")
+score = conf.score()  # 0.95 × 0.90 × 0.85 = 0.726
+```
+
+Confidence drives routing, HITL escalation, and is exposed in every API response — giving compliance full chain of custody over every automated decision.
 
 ---
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|-----------|
-| Orchestration | LangGraph |
-| LLM | Anthropic Claude Sonnet |
-| Data Validation | Pydantic v2 |
-| Market Data | yfinance (primary) + Alpha Vantage (secondary) |
-| Logging | structlog (OpenTelemetry-compatible) |
-| Resilience | tenacity, custom circuit breakers |
-| Numerical | NumPy |
-| Auth | python-jose (JWT) |
-| CI/CD | GitHub Actions, Docker, Kubernetes |
-| Testing | pytest, ruff, black, mypy, bandit, safety |
+| Category | Technology | Notes |
+|---|---|---|
+| **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) | State machine, conditional edges, MemorySaver checkpointing |
+| **LLM** | Anthropic Claude Sonnet | `claude-sonnet-4-20250514`, temp=0.1 |
+| **Observability** | [LangFuse](https://langfuse.com) | Per-call traces, confidence scores, prompt versions |
+| **Data validation** | Pydantic v2 | All agent I/O under typed contracts |
+| **Market data** | yfinance + Alpha Vantage | Dual-source cross-validation |
+| **NLP / Sentiment** | [FinBERT](https://huggingface.co/ProsusAI/finbert) (HuggingFace Transformers) | ~97% on Financial PhraseBank; thread-safe singleton, batch inference |
+| **ML baseline** | scikit-learn | TF-IDF + Logistic Regression baseline (research only) |
+| **Logging** | structlog | OpenTelemetry-compatible structured output |
+| **Resilience** | tenacity + custom CircuitBreaker | Exponential backoff, cooldown periods |
+| **Numerical** | NumPy | VaR (historical simulation), max drawdown |
+| **Auth** | python-jose | JWT validation stub (production: Auth0/Okta) |
+| **Server** | FastAPI + Uvicorn | `POST /v1/advise`, `GET /health` |
+| **Testing** | pytest, ruff, black, mypy, bandit, safety | Business logic + compliance assertions |
+| **Deployment** | Docker + Kubernetes | Rolling update strategy, liveness/readiness probes |
+| **CI/CD** | GitHub Actions | Lint, test, security scan, codecov |
 
 ---
 
 ## Quick Start
 
 ```bash
-# Clone and set up
 git clone https://github.com/jasmine2chen/vector-retail.git
 cd vector-retail
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Configure
 cp .env.example .env
-# Edit .env → add your ANTHROPIC_API_KEY
+# Add ANTHROPIC_API_KEY (required)
+# Add LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY (optional — enables tracing)
 
-# Run
 python -m vector_retail.main
 ```
 
-### Example Output
+**To run the model evaluation notebook** (FinBERT vs TF-IDF vs Claude):
+
+```bash
+pip install -r requirements-research.txt  # Jupyter, datasets, scikit-learn, scipy
+jupyter notebook notebooks/model_evaluation.ipynb
+# FinBERT weights download once to ~/.cache/huggingface/ (~500MB)
+# Claude baseline uses a cached 100-sample subset (notebooks/cache/claude_predictions.json)
+```
+
+### Example session output
 
 ```
 ═══════════════════════════════════════════════════════════════════
   VECTOR RETAIL — Production Finance AI Agent v2.0
 ═══════════════════════════════════════════════════════════════════
 
-Session ID       : a1b2c3d4-...
-Deployment Slot  : blue
-Policy Version   : 2.0.0
-Total Latency    : 4230ms
-Audit Events     : 18
-Chain Integrity  : ✓ VALID
-HITL Escalated   : No
-Shadow Eval      : 0.92
+Session ID        : a1b2c3d4-...
+Deployment Slot   : blue
+Policy Version    : 2.0.0
+Prompt Versions   : portfolio=1.0.0  sentiment_analysis=1.0.0  meta_critic=1.0.0  synthesizer=1.0.0
+Total Latency     : 4,890ms
+Audit Events      : 24
+Chain Integrity   : ✓ VALID
+HITL Escalated    : No
+Reflection Applied: No
+Shadow Eval       : 0.91  (heuristic=0.88, llm_judge=0.93)
 
 Agent Confidences:
-  portfolio_analysis      : ████████░░ 85%
-  market_intel            : ████████░░ 80%
-  risk_assessment         : ███████░░░ 78%
-  tax_optimization        : ██████░░░░ 65%
-  rebalance               : ████████░░ 82%
+  portfolio_analysis      : ████████░░  85%
+  market_intel            : ████████░░  80%
+  risk_assessment         : ███████░░░  78%
+  tax_optimization        : ██████░░░░  65%
+  rebalance               : ████████░░  82%
+  sentiment_analysis      : ███████░░░  76%  [FinBERT · 32 headlines · 0 bearish]
 
-Meta Confidence  : ████████░░ 81%
+Meta Confidence   : ████████░░  80%
 
 ─────────────────────────────────────────────────────────────────
 RESPONSE:
 ─────────────────────────────────────────────────────────────────
-Your portfolio is performing well overall with a total value of $48,250...
+Your portfolio is performing well overall, with a current total
+value of $48,250 across 3 holdings (based on yfinance data)...
+
+---
+*This content is for informational purposes only and does not
+constitute investment advice under SEC Regulation Best Interest...*
 ```
 
 ---
@@ -168,36 +374,70 @@ Your portfolio is performing well overall with a total value of $48,250...
 ## Testing
 
 ```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
+# All tests
+pytest tests/ -v
 
-# Run unit tests with coverage
-pytest tests/ -v --cov=src/vector_retail --cov-report=term
+# Integration tests — compliance business logic
+pytest tests/integration/ -v
 
-# Lint + format
-ruff check src/ tests/
-black --check src/ tests/
+# Unit tests — includes FinBERT unit tests (fully mocked, < 1s)
+pytest tests/unit/ -v
+
+# With coverage
+pytest tests/ --cov=src/vector_retail --cov-report=term
 
 # Security scan
 bandit -r src/ -ll
 safety check -r requirements.txt
+```
 
-# Type checking
-mypy src/
+All external dependencies are mocked in tests — no network calls, no API keys required, no FinBERT download:
+- **Integration tests**: `ChatAnthropic`, `yf.Ticker` (oracle + sentiment), and `_load_finbert` are all patched. Sentiment agent runs in graceful no-data mode.
+- **Unit tests**: FinBERT pipeline is mocked deterministically; all 8 degradation paths tested in < 1s.
+
+The integration tests assert on **compliance outcomes**, not just pipeline execution:
+
+```bash
+PASSED tests/integration/test_orchestrator_pipeline.py::TestComplianceBusinessLogic::test_unverified_kyc_triggers_policy_flag
+PASSED tests/integration/test_orchestrator_pipeline.py::TestComplianceBusinessLogic::test_concentrated_position_triggers_concentration_flag
+PASSED tests/integration/test_orchestrator_pipeline.py::TestComplianceBusinessLogic::test_large_trade_triggers_hitl_escalation
+PASSED tests/integration/test_orchestrator_pipeline.py::TestComplianceBusinessLogic::test_audit_chain_integrity_always_holds
+PASSED tests/integration/test_orchestrator_pipeline.py::TestComplianceBusinessLogic::test_response_contains_regulatory_disclaimer
+```
+
+Sentiment agent unit tests cover all degradation paths (FinBERT mocked — no network, no GPU, sub-1s):
+
+```bash
+PASSED tests/unit/test_sentiment.py::TestSentimentScore::test_dominant_label_positive
+PASSED tests/unit/test_sentiment.py::TestSentimentScore::test_bearish_flag_triggers_above_threshold
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_bullish_headlines_produce_positive_sentiment
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_bearish_headlines_produce_policy_flag
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_no_news_returns_gracefully_with_penalised_confidence
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_finbert_failure_degrades_gracefully
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_multi_symbol_batch_inference
+PASSED tests/unit/test_sentiment.py::TestSentimentAgent::test_confidence_penalised_for_thin_news
 ```
 
 ---
 
 ## Configuration
 
-All risk thresholds and policy rules live in [`config/policy_rules.json`](config/policy_rules.json) — no magic numbers in application code. Changes require version bumps and compliance sign-off.
+All risk thresholds live in [`config/policy_rules.json`](config/policy_rules.json). All system prompts live in [`config/prompts/`](config/prompts/). No magic numbers or hardcoded strings in application code.
 
-Key configurable parameters:
-- `trade_value_hitl_threshold_usd` — trade value triggering human review ($25,000 default)
-- `max_single_position_pct` — concentration limits by risk profile
-- `max_sector_exposure_pct` — sector exposure limits by risk profile
-- `min_confidence_for_auto_response` — confidence floor for auto-response (0.75)
-- `shadow_eval_sample_rate` — traffic sampling rate for quality scoring (10%)
+```jsonc
+// config/policy_rules.json
+{
+  "version": "2.0.0",
+  "trade_value_hitl_threshold_usd": 25000,       // Trades > $25k → human review
+  "min_confidence_for_auto_response": 0.75,       // < 0.75 → HITL escalation
+  "shadow_eval_sample_rate": 0.10,                // 10% traffic sampling
+  "max_single_position_pct": {
+    "conservative": 0.05,
+    "moderate": 0.10,                             // FINRA Rule 2111 enforcement
+    "aggressive": 0.20
+  }
+}
+```
 
 ---
 
@@ -206,35 +446,66 @@ Key configurable parameters:
 ```
 vector-retail/
 ├── src/vector_retail/
-│   ├── agents/           # 5 parallel specialist agents + meta-critic + synthesizer
-│   │   ├── base.py       # Base class with LLM call, PII redaction, error handling
-│   │   ├── portfolio.py  # Portfolio analysis with concentration checks
-│   │   ├── market.py     # Market intelligence (yfinance)
-│   │   ├── risk.py       # VaR, max drawdown, plain-language risk explanation
-│   │   ├── tax.py        # Tax-loss harvesting, wash-sale warnings
-│   │   ├── rebalance.py  # Drift calculation, HITL-gated trades
-│   │   ├── meta_critic.py # Self-reflective audit of all agent outputs
-│   │   └── synthesizer.py # Grounded response with citations & disclaimers
-│   ├── core/             # Domain models, policy engine, audit trail
-│   ├── data/             # Data oracle with dual-source verification
-│   ├── evaluation/       # HITL gate + shadow evaluation framework
-│   ├── security/         # PII redaction, RBAC, JWT validation
-│   ├── orchestrator.py   # LangGraph state machine
-│   └── main.py           # Entry point and demo runner
-├── tests/                # Unit + integration tests
-├── config/               # Externalised policy rules
-├── docs/                 # Compliance docs and runbook
-├── k8s/                  # Kubernetes deployment manifests
-├── scripts/              # Health check and utilities
-└── .github/workflows/    # CI pipeline (lint, test, security scan)
+│   ├── agents/
+│   │   ├── base.py            # LangFuse tracing, prompt injection scan, PII redaction
+│   │   ├── portfolio.py       # Concentration checks (FINRA 2111)
+│   │   ├── market.py          # Market intel (no price predictions)
+│   │   ├── risk.py            # VaR (historical simulation), max drawdown
+│   │   ├── tax.py             # Tax-loss harvesting, wash-sale (30-day rule)
+│   │   ├── rebalance.py       # Drift detection, HITL-gated trades
+│   │   ├── sentiment.py       # FinBERT news sentiment (6th parallel agent)
+│   │   ├── meta_critic.py     # Self-reflective audit + reflection routing
+│   │   └── synthesizer.py     # Revision-aware response synthesis
+│   ├── core/
+│   │   ├── models.py          # Pydantic v2 contracts (AgentResult, GraphState, ...)
+│   │   ├── policy.py          # PolicyEngine — SEC/FINRA rule enforcement
+│   │   ├── prompts.py         # Versioned prompt registry (YAML-backed)
+│   │   └── audit.py           # SHA-256 hash-chained audit trail (SOC 2)
+│   ├── data/
+│   │   ├── oracle.py          # Dual-source market data, caching, staleness
+│   │   └── circuit_breaker.py # Resilience pattern for API calls
+│   ├── evaluation/
+│   │   ├── hitl.py            # HITL escalation gate + SLA-tiered tickets
+│   │   └── shadow_eval.py     # LLM-as-judge + heuristic scoring + blue/green
+│   ├── security/
+│   │   ├── pii.py             # PII redaction (regex; Presidio-ready)
+│   │   ├── rbac.py            # RBAC with least-privilege role model
+│   │   └── prompt_guard.py    # Prompt injection defense (OWASP LLM #1)
+│   ├── orchestrator.py        # LangGraph graph, conditional routing, checkpointing
+│   └── server.py              # FastAPI server
+├── config/
+│   ├── policy_rules.json      # Versioned compliance thresholds
+│   └── prompts/               # Versioned agent system prompts (YAML)
+│       ├── sentiment_analysis.yaml
+│       ├── meta_critic.yaml
+│       ├── synthesizer.yaml
+│       └── ...
+├── notebooks/
+│   └── model_evaluation.ipynb # FinBERT vs TF-IDF vs Claude on Financial PhraseBank
+├── tests/
+│   ├── unit/                  # Oracle, PII, policy, shadow eval, sentiment (mocked FinBERT)
+│   └── integration/           # End-to-end compliance business logic tests
+├── docs/
+│   ├── COMPLIANCE.md          # SEC Reg BI, FINRA, NIST AI RMF, SOC 2, GDPR
+│   └── RUNBOOK.md             # Deployment, monitoring, troubleshooting
+├── requirements.txt           # Production dependencies
+├── requirements-research.txt  # Notebook / research dependencies (not in Docker image)
+├── k8s/                       # Kubernetes manifests (rolling update strategy)
+└── .github/workflows/         # CI: lint, test, security scan, coverage
 ```
 
 ---
 
-## Documentation
+## Compliance Alignment
 
-- [Compliance & Regulatory Alignment](docs/COMPLIANCE.md) — SEC Reg BI, NIST AI RMF, OWASP, SOC 2, GDPR/CCPA
-- [Runbook](docs/RUNBOOK.md) — Quickstart, troubleshooting, monitoring, deployment
+| Framework | How it's implemented |
+|---|---|
+| **SEC Reg BI** | Suitability checks per session, jurisdiction-specific disclaimers, no specific advice without caveats |
+| **FINRA Rule 2111** | Concentration limits enforced by PolicyEngine against client risk profile |
+| **NIST AI RMF** | Govern (versioned policies/prompts), Map (reasoning chains), Measure (shadow eval), Manage (meta-critic + HITL) |
+| **OWASP LLM Top 10** | LLM01: prompt injection guard; LLM02: output validation; LLM06: PII redaction; LLM08: RBAC |
+| **SOC 2 Type II** | SHA-256 hash-chained audit trail; export hooks for S3 Object Lock / Azure WORM |
+| **GDPR / CCPA** | Name stored as first name + last initial only; PII stripped before LLM calls |
 
 ---
 

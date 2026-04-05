@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List, Optional
 
 import numpy as np
 import structlog
@@ -32,13 +31,13 @@ class RiskAssessmentAgent(BaseFinanceAgent):
 
     def run(self, state: GraphState) -> AgentResult:
         t0 = time.time()
-        reasoning: List[str] = []
+        reasoning: list[str] = []
         profile = UserProfile(**state.user_profile)
         holdings = [PortfolioHolding(**h) for h in state.holdings]
         quotes = state.quotes
 
         # ── Historical returns ─────────────────────────────────────────────
-        returns_data: Dict[str, np.ndarray] = {}
+        returns_data: dict[str, np.ndarray] = {}
         for h in holdings[:5]:
             try:
                 ticker = yf.Ticker(h.symbol)
@@ -56,7 +55,7 @@ class RiskAssessmentAgent(BaseFinanceAgent):
         )
 
         # ── VaR (95%, 1-day, historical simulation) ────────────────────────
-        portfolio_var_95_usd: Optional[float] = None
+        portfolio_var_95_usd: float | None = None
         if returns_data and total_val > 0:
             all_series = [r for r in returns_data.values() if len(r) > 0]
             if all_series:
@@ -69,7 +68,7 @@ class RiskAssessmentAgent(BaseFinanceAgent):
                 )
 
         # ── Max drawdown per holding ───────────────────────────────────────
-        max_drawdowns: Dict[str, float] = {}
+        max_drawdowns: dict[str, float] = {}
         for sym, returns in returns_data.items():
             cumulative = np.cumprod(1 + returns)
             rolling_max = np.maximum.accumulate(cumulative)

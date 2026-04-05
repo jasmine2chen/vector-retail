@@ -12,7 +12,6 @@ Prevents cascading failures when market data APIs are degraded.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import structlog
 
@@ -34,7 +33,7 @@ class CircuitBreaker:
         self.max_failures = max_failures
         self.cooldown_seconds = cooldown_seconds
         self._failures = 0
-        self._opened_at: Optional[float] = None
+        self._opened_at: float | None = None
         self._log = log.bind(circuit=name)
 
     @property

@@ -14,7 +14,6 @@ OWASP LLM Top 10 — LLM06: Sensitive Information Disclosure mitigation.
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
 
 import structlog
 
@@ -23,7 +22,7 @@ log = structlog.get_logger("pii_redactor")
 # ── Compiled patterns ──────────────────────────────────────────────────────────
 # Order matters: more-specific patterns first to avoid partial matches.
 
-_PATTERNS: List[Tuple[re.Pattern, str]] = [
+_PATTERNS: list[tuple[re.Pattern, str]] = [
     # US Social Security Number
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[SSN-REDACTED]"),
     # US Employer Identification Number (EIN: XX-XXXXXXX format)
@@ -60,7 +59,7 @@ def redact(text: str, session_id: str = "") -> str:
     """
     _log = log.bind(session_id=session_id)
     redacted = text
-    redactions: List[str] = []
+    redactions: list[str] = []
 
     for pattern, replacement in _PATTERNS:
         new_text, count = re.subn(pattern, replacement, redacted)

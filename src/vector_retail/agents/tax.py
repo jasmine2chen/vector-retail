@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
@@ -33,15 +33,15 @@ class TaxOptimizationAgent(BaseFinanceAgent):
 
     def run(self, state: GraphState) -> AgentResult:
         t0 = time.time()
-        reasoning: List[str] = []
+        reasoning: list[str] = []
         profile = UserProfile(**state.user_profile)
         holdings = [PortfolioHolding(**h) for h in state.holdings]
         quotes = state.quotes
         policy = PolicyEngine(profile, self.audit.record)
 
-        today = datetime.now(timezone.utc).date()
-        loss_harvest_candidates: List[Dict[str, Any]] = []
-        wash_sale_warnings: List[str] = []
+        today = datetime.now(UTC).date()
+        loss_harvest_candidates: list[dict[str, Any]] = []
+        wash_sale_warnings: list[str] = []
 
         for h in holdings:
             q = quotes.get(h.symbol, {})

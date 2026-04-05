@@ -2,7 +2,7 @@
 tests/unit/test_pii.py
 Unit tests for PII redaction layer.
 """
-from vector_retail.security.pii import redact, has_pii
+from vector_retail.security.pii import has_pii, redact
 
 
 class TestPIIRedaction:

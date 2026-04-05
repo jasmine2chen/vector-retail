@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 
-from ..core.models import AgentResult, GraphState, PortfolioHolding, UserProfile
 from ..core.enums import RiskTolerance
+from ..core.models import AgentResult, GraphState, PortfolioHolding, UserProfile
 from ..core.policy import POLICY_RULES, PolicyEngine
 from .base import BaseFinanceAgent
 
@@ -29,14 +29,14 @@ class RebalanceAgent(BaseFinanceAgent):
 
     # Target allocations loaded from config/policy_rules.json (single source of truth).
     # Fallback values used only if config key is missing.
-    _FALLBACK_ALLOCATIONS: Dict[str, Dict[str, float]] = {
+    _FALLBACK_ALLOCATIONS: dict[str, dict[str, float]] = {
         RiskTolerance.CONSERVATIVE: {"equity": 0.40, "fixed_income": 0.50, "cash": 0.10},
         RiskTolerance.MODERATE:     {"equity": 0.60, "fixed_income": 0.30, "cash": 0.10},
         RiskTolerance.AGGRESSIVE:   {"equity": 0.80, "fixed_income": 0.15, "cash": 0.05},
     }
 
     @classmethod
-    def _get_target_allocations(cls) -> Dict[str, Dict[str, float]]:
+    def _get_target_allocations(cls) -> dict[str, dict[str, float]]:
         """Load target allocations from policy config, falling back to defaults."""
         config_allocs = POLICY_RULES.get("target_allocations", {})
         if config_allocs:
@@ -50,14 +50,14 @@ class RebalanceAgent(BaseFinanceAgent):
 
     def run(self, state: GraphState) -> AgentResult:
         t0 = time.time()
-        reasoning: List[str] = []
+        reasoning: list[str] = []
         profile = UserProfile(**state.user_profile)
         holdings = [PortfolioHolding(**h) for h in state.holdings]
         quotes = state.quotes
         policy = PolicyEngine(profile, self.audit.record)
 
         # ── Current allocation ─────────────────────────────────────────────
-        current_alloc: Dict[str, float] = {}
+        current_alloc: dict[str, float] = {}
         total_val = 0.0
         for h in holdings:
             q = quotes.get(h.symbol, {})
@@ -76,8 +76,8 @@ class RebalanceAgent(BaseFinanceAgent):
         )
 
         # ── Drift calculation ──────────────────────────────────────────────
-        rebalance_actions: List[Dict[str, Any]] = []
-        policy_flags: List[str] = []
+        rebalance_actions: list[dict[str, Any]] = []
+        policy_flags: list[str] = []
 
         for asset_class, target_pct in target.items():
             current = current_pct.get(asset_class, 0.0)

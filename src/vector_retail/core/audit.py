@@ -14,7 +14,7 @@ for SOC 2 Type II compliance.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -33,7 +33,7 @@ class AuditTrail:
     def __init__(self, session_id: str, user_id: str):
         self.session_id = session_id
         self.user_id = user_id
-        self._chain: List[AuditEvent] = []
+        self._chain: list[AuditEvent] = []
         self._log = log.bind(session_id=session_id, user_id=user_id)
 
     def record(
@@ -41,7 +41,7 @@ class AuditTrail:
         event_type: str,
         action: str,
         outcome: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AuditEvent:
         """
         Append a new event to the chain.
@@ -100,7 +100,7 @@ class AuditTrail:
                 return False
         return True
 
-    def export(self) -> List[Dict[str, Any]]:
+    def export(self) -> list[dict[str, Any]]:
         """
         Export the full chain as a list of dicts.
         Use this to persist to external WORM storage.

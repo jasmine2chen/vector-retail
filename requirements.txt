@@ -32,6 +32,18 @@ numpy>=1.26.0
 # Environment configuration
 python-dotenv>=1.0.0
 
+# Observability (LangFuse tracing — set LANGFUSE_PUBLIC_KEY to enable)
+langfuse>=2.0.0
+
+# Prompt versioning (YAML-based prompt registry)
+pyyaml>=6.0.0
+
+# NLP — FinBERT sentiment analysis (ProsusAI/finbert via HuggingFace)
+# Downloads ~500MB of model weights on first use (cached to ~/.cache/huggingface/)
+# Pre-bake into Docker image for production: RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ProsusAI/finbert')"
+transformers>=4.40.0
+torch>=2.0.0          # CPU inference; set device=0 for GPU in SentimentAgent
+
 # ── Production extras (uncomment as needed) ────────────────────────────
 # opentelemetry-sdk>=1.24.0                  # Full OTel traces
 # opentelemetry-exporter-otlp>=1.24.0       # Export to Jaeger/Grafana

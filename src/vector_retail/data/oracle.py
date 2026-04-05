@@ -18,7 +18,6 @@ Features:
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Optional, Tuple
 
 import structlog
 import yfinance as yf
@@ -43,7 +42,7 @@ class DataOracle:
 
     def __init__(self, audit_fn):
         self._audit = audit_fn
-        self._cache: Dict[str, Tuple[MarketQuote, float]] = {}
+        self._cache: dict[str, tuple[MarketQuote, float]] = {}
         self._cb_primary = CircuitBreaker("yfinance", max_failures=3, cooldown_seconds=60)
         self._cb_secondary = CircuitBreaker("alpha_vantage", max_failures=3, cooldown_seconds=60)
         self._log = log
@@ -55,7 +54,7 @@ class DataOracle:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
-    def _fetch_primary(self, symbol: str) -> Optional[float]:
+    def _fetch_primary(self, symbol: str) -> float | None:
         """
         Fetch latest price from yfinance with exponential backoff.
         Raises on failure (tenacity will retry up to 3 times).
@@ -82,7 +81,7 @@ class DataOracle:
             self._log.warning("primary_fetch_error", symbol=symbol, error=str(exc))
             raise
 
-    def _fetch_secondary(self, symbol: str, primary_price: Optional[float]) -> Optional[float]:
+    def _fetch_secondary(self, symbol: str, primary_price: float | None) -> float | None:
         """
         Fetch from secondary source (Alpha Vantage).
 
@@ -144,7 +143,7 @@ class DataOracle:
         t0 = time.time()
 
         # Primary fetch
-        price_primary: Optional[float] = None
+        price_primary: float | None = None
         try:
             price_primary = self._fetch_primary(symbol)
         except Exception:
@@ -164,7 +163,7 @@ class DataOracle:
             price_primary = price_secondary
 
         # Cross-reference
-        divergence: Optional[float] = None
+        divergence: float | None = None
         is_verified = False
 
         if price_primary and price_secondary:
@@ -203,7 +202,7 @@ class DataOracle:
         return quote
 
     def get_portfolio_quotes(
-        self, holdings: List[PortfolioHolding]
-    ) -> Dict[str, MarketQuote]:
+        self, holdings: list[PortfolioHolding]
+    ) -> dict[str, MarketQuote]:
         """Fetch verified quotes for all holdings."""
         return {h.symbol: self.get_verified_quote(h.symbol) for h in holdings}

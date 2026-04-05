@@ -4,9 +4,9 @@ Unit tests for the data oracle — mocked to avoid live API calls.
 """
 from unittest.mock import MagicMock, patch
 
-from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
 from vector_retail.core.models import PortfolioHolding
 from vector_retail.data.oracle import DataOracle
+
 
 def _noop_audit(*args, **kwargs):
     pass

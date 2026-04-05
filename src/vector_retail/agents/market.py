@@ -8,7 +8,7 @@ Provides balanced, factual market context — no price predictions.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 import yfinance as yf
@@ -24,13 +24,13 @@ class MarketIntelAgent(BaseFinanceAgent):
 
     def run(self, state: GraphState) -> AgentResult:
         t0 = time.time()
-        reasoning: List[str] = []
+        reasoning: list[str] = []
         profile = UserProfile(**state.user_profile)
 
         symbols = [h["symbol"] for h in state.holdings[:5]]  # Cap at 5 for latency
         reasoning.append(f"Analysing market signals for: {', '.join(symbols)}")
 
-        market_context: Dict[str, Any] = {}
+        market_context: dict[str, Any] = {}
         for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)

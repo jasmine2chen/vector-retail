@@ -1,0 +1,29 @@
+# vector-retail — Research / Notebook Dependencies
+# Install alongside requirements.txt:
+#   pip install -r requirements.txt -r requirements-research.txt
+#
+# These are NOT required for the production server.
+# Kept separate to keep the Docker image lean.
+
+# Jupyter environment
+jupyter>=1.0.0
+ipykernel>=6.29.0
+ipywidgets>=8.1.0       # Progress bars in notebooks
+
+# HuggingFace ecosystem (NLP baselines)
+datasets>=2.19.0        # Financial PhraseBank: load_dataset("financial_phrasebank", ...)
+evaluate>=0.4.0         # HuggingFace evaluate library (precision, recall, F1)
+
+# Classical ML baseline
+scikit-learn>=1.4.0     # TF-IDF + Logistic Regression
+
+# Visualisation
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Statistical testing
+scipy>=1.12.0           # McNemar's test for model comparison significance
+
+# Notebook utilities
+tqdm>=4.66.0            # Progress bars
+tabulate>=0.9.0         # Markdown / LaTeX table formatting

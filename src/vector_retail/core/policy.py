@@ -16,13 +16,12 @@ Implements:
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import structlog
 
-from .enums import AccountType, RiskTolerance
+from .enums import AccountType
 from .models import UserProfile
 
 log = structlog.get_logger("policy_engine")
@@ -30,7 +29,7 @@ log = structlog.get_logger("policy_engine")
 # ── Load policy rules from config file ────────────────────────────────────────
 _CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config" / "policy_rules.json"
 
-def _load_policy() -> Dict[str, Any]:
+def _load_policy() -> dict[str, Any]:
     if _CONFIG_PATH.exists():
         with open(_CONFIG_PATH) as f:
             return json.load(f)
@@ -59,7 +58,7 @@ def _load_policy() -> Dict[str, Any]:
         },
     }
 
-POLICY_RULES: Dict[str, Any] = _load_policy()
+POLICY_RULES: dict[str, Any] = _load_policy()
 POLICY_VERSION: str = POLICY_RULES.get("version", "2.0.0")
 
 
@@ -105,7 +104,7 @@ class PolicyEngine:
         symbol: str,
         proposed_value_usd: float,
         total_portfolio_value_usd: float,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Returns (passes, reason).
         Fails if position would exceed max_position_pct for this risk profile.
@@ -135,7 +134,7 @@ class PolicyEngine:
         sector: str,
         sector_value_usd: float,
         total_portfolio_value_usd: float,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Fails if sector exposure exceeds max_sector_pct."""
         if total_portfolio_value_usd <= 0:
             return False, "Portfolio value is zero"
@@ -168,7 +167,7 @@ class PolicyEngine:
             )
         return required
 
-    def check_kyc_clearance(self, action: str) -> Tuple[bool, str]:
+    def check_kyc_clearance(self, action: str) -> tuple[bool, str]:
         """KYC gate — blocks regulated actions if KYC not verified."""
         if not self.profile.kyc_verified:
             reason = f"KYC verification required before: {action}"
@@ -192,12 +191,12 @@ class PolicyEngine:
         symbol: str,
         trade_value_usd: float,
         total_portfolio_value_usd: float,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Runs all applicable compliance checks for a proposed trade.
         Returns a list of policy flag strings (empty = all clear).
         """
-        flags: List[str] = []
+        flags: list[str] = []
 
         kyc_ok, kyc_reason = self.check_kyc_clearance("trade")
         if not kyc_ok:

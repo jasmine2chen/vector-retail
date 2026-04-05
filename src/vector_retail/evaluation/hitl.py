@@ -12,9 +12,9 @@ Production integration points:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
 import uuid
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
@@ -33,12 +33,12 @@ class HITLGate:
 
     def __init__(self, audit_fn):
         self._audit = audit_fn
-        self._queue: List[Dict[str, Any]] = []
+        self._queue: list[dict[str, Any]] = []
         self._log = log
 
     def evaluate(
         self, state: GraphState, meta_result: AgentResult
-    ) -> Tuple[bool, HITLPriority]:
+    ) -> tuple[bool, HITLPriority]:
         """
         Determine if HITL is required and assign a priority level.
 
@@ -68,12 +68,12 @@ class HITLGate:
         state: GraphState,
         meta_result: AgentResult,
         priority: HITLPriority,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create and queue a HITL ticket.
         In production, this would POST to your ticketing system.
         """
-        ticket: Dict[str, Any] = {
+        ticket: dict[str, Any] = {
             "ticket_id": str(uuid.uuid4()),
             "session_id": state.session_id,
             "priority": priority.value,
@@ -83,7 +83,7 @@ class HITLGate:
             "assigned_to": "compliance_queue",
             "status": "pending_review",
             "sla_hours": {"critical": 2, "high": 4, "medium": 8, "low": 24}[priority.value],
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         self._queue.append(ticket)
@@ -101,5 +101,5 @@ class HITLGate:
         return ticket
 
     @property
-    def queue(self) -> List[Dict[str, Any]]:
+    def queue(self) -> list[dict[str, Any]]:
         return list(self._queue)

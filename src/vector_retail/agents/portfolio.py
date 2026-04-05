@@ -11,7 +11,6 @@ Responsibilities:
 from __future__ import annotations
 
 import time
-from typing import Dict, List
 
 import structlog
 
@@ -27,7 +26,7 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
 
     def run(self, state: GraphState) -> AgentResult:
         t0 = time.time()
-        reasoning: List[str] = []
+        reasoning: list[str] = []
 
         holdings = [PortfolioHolding(**h) for h in state.holdings]
         quotes = state.quotes
@@ -36,9 +35,9 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
 
         # ── Compute metrics ────────────────────────────────────────────────
         total_value = 0.0
-        position_values: Dict[str, float] = {}
-        unrealised_pnl: Dict[str, float] = {}
-        sector_exposure: Dict[str, float] = {}
+        position_values: dict[str, float] = {}
+        unrealised_pnl: dict[str, float] = {}
+        sector_exposure: dict[str, float] = {}
 
         for h in holdings:
             q = quotes.get(h.symbol, {})
@@ -52,7 +51,7 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
         reasoning.append(f"Total portfolio market value: ${total_value:,.2f}")
 
         # ── Concentration checks ───────────────────────────────────────────
-        concentration_flags: List[str] = []
+        concentration_flags: list[str] = []
         for sym, val in position_values.items():
             ok, reason = policy.check_position_concentration(sym, val, total_value)
             if not ok:
