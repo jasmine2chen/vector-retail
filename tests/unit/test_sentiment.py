@@ -317,7 +317,7 @@ class TestSentimentAgent:
         mock_pipeline = MagicMock()
         mock_pipeline.return_value = _finbert_output(0.33, 0.33) * 3
         mock_load_finbert.return_value = mock_pipeline
-        mock_ticker.return_value.news = [{"title": f"H{i}"} for i in range(3)]
+        mock_ticker.return_value.news = [{"title": f"VTI headline {i}"} for i in range(3)]
 
         agent = _make_agent(mock_llm)
         result = agent.run(_make_state(["VTI"]))
