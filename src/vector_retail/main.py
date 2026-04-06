@@ -9,6 +9,8 @@ Run:
 """
 from __future__ import annotations
 
+import os
+
 from .core.enums import AccountType, DeploymentSlot, Jurisdiction, RiskTolerance
 from .core.models import PortfolioHolding, UserProfile
 from .orchestrator import VectorRetailAgent
@@ -76,7 +78,7 @@ def run_demo() -> dict:
         ),
         user_profile=profile,
         holdings=holdings,
-        auth_token="demo_token_v2_placeholder",
+        auth_token=os.getenv("AUTH_TOKEN", ""),
         role="retail_client",
     )
 
@@ -86,7 +88,8 @@ def run_demo() -> dict:
     print(f"Policy Version   : {result.get('policy_version', 'N/A')}")
     print(f"Total Latency    : {result.get('total_latency_ms', 0):.0f}ms")
     print(f"Audit Events     : {result.get('audit_trail_length', 0)}")
-    print(f"Chain Integrity  : {'✓ VALID' if result.get('audit_chain_integrity') else '✗ COMPROMISED'}")
+    chain_ok = result.get("audit_chain_integrity")
+    print(f"Chain Integrity  : {'✓ VALID' if chain_ok else '✗ COMPROMISED'}")
     print(f"HITL Escalated   : {'YES ⚠' if result.get('hitl_escalated') else 'No'}")
     print(f"Shadow Eval      : {result.get('shadow_eval_score') or 'Not sampled this run'}")
     print()

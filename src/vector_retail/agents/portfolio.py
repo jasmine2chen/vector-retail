@@ -107,7 +107,11 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
             elif q.get("is_stale"):
                 conf.penalize("stale_quote", f"Stale quote for {h.symbol}", h.symbol)
         if concentration_flags:
-            conf.penalize("policy_violation", f"{len(concentration_flags)} policy flag(s)", len(concentration_flags))
+            conf.penalize(
+                "policy_violation",
+                f"{len(concentration_flags)} policy flag(s)",
+                len(concentration_flags),
+            )
         if self._is_llm_error(llm_assessment):
             conf.penalize("llm_failure", "LLM assessment unavailable")
 

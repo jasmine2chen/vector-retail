@@ -108,7 +108,11 @@ class RiskAssessmentAgent(BaseFinanceAgent):
         total_holdings = len(holdings[:5])
         missing_history = total_holdings - len(returns_data)
         for _ in range(missing_history):
-            conf.penalize("insufficient_data", f"Missing 3M history for {missing_history} holding(s)", missing_history)
+            conf.penalize(
+                "insufficient_data",
+                f"Missing 3M history for {missing_history} holding(s)",
+                missing_history,
+            )
         if portfolio_var_95_usd is None:
             conf.penalize("var_computation_failed", "Could not compute portfolio VaR")
         if self._is_llm_error(llm_explanation):

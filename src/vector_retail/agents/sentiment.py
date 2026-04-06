@@ -259,7 +259,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             for sym in headlines_by_symbol
         }
 
-        for (symbol, rank), scores_list in zip(flat_meta, batch_results):
+        for (symbol, rank), scores_list in zip(flat_meta, batch_results, strict=False):
             weight = float(np.exp(-0.15 * rank))   # Recency decay
             scores_map = {s["label"].lower(): s["score"] for s in scores_list}
             accum = symbol_accum[symbol]
@@ -328,7 +328,9 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                 findings={
                     "sentiment_scores": {},
                     "bearish_signals": [],
-                    "llm_sentiment_commentary": "No recent news headlines were available for any holding.",
+                    "llm_sentiment_commentary": (
+                        "No recent news headlines were available for any holding."
+                    ),
                     "model": _FINBERT_MODEL,
                 },
                 data_sources=["yfinance_news"],
@@ -346,8 +348,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             )
             infer_ms = round((time.time() - t_infer) * 1000)
             reasoning.append(
-                f"FinBERT batch inference: {len(flat := list(sentiment_scores))} symbols "
-                f"in {infer_ms}ms"
+                f"FinBERT batch inference: {len(sentiment_scores)} symbols in {infer_ms}ms"
             )
             self._log.info(
                 "finbert_inference_complete",

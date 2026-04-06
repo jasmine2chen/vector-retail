@@ -35,19 +35,22 @@ DISCLAIMERS: dict[str, str] = {
         "Please consult a registered investment advisor before making any investment decisions."
     ),
     Jurisdiction.UK: (
-        "This information is for general guidance only and does not constitute regulated financial advice "
-        "under FCA rules. Capital at risk. Past performance is not a reliable indicator of future results. "
+        "This information is for general guidance only and does not constitute "
+        "regulated financial advice under FCA rules. Capital at risk. "
+        "Past performance is not a reliable indicator of future results. "
         "Seek independent financial advice before making investment decisions."
     ),
     Jurisdiction.EU: (
         "This content does not constitute MiFID II investment advice. "
         "Investments involve risk of loss, including possible loss of principal. "
-        "Consult a licensed investment firm authorised by a competent authority in your jurisdiction."
+        "Consult a licensed investment firm authorised by a competent authority "
+        "in your jurisdiction."
     ),
     Jurisdiction.CA: (
-        "This is general financial information only and does not constitute personalised investment advice "
-        "under OSC or applicable provincial securities regulations. "
-        "Consult a registered portfolio manager or investment advisor for personalised guidance."
+        "This is general financial information only and does not constitute "
+        "personalised investment advice under OSC or applicable provincial securities "
+        "regulations. Consult a registered portfolio manager or investment advisor "
+        "for personalised guidance."
     ),
 }
 
@@ -55,8 +58,8 @@ _FALLBACK_SYSTEM_PROMPT = (
     "You are a retail financial advisor assistant producing a final client-facing response. "
     "Synthesise the analysis below into a clear, well-structured response. "
     "Use plain language. Lead with the most important findings. "
-    "Do NOT make specific buy/sell recommendations without noting these are general observations only. "
-    "Cite data sources where relevant. "
+    "Do NOT make specific buy/sell recommendations without noting these are "
+    "general observations only. Cite data sources where relevant. "
 )
 
 

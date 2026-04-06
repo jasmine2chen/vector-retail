@@ -3,16 +3,16 @@ core/enums.py
 Centralised domain enumerations.
 All modules import from here — never redefined elsewhere.
 """
-from enum import Enum
+from enum import StrEnum
 
 
-class RiskTolerance(str, Enum):
+class RiskTolerance(StrEnum):
     CONSERVATIVE = "conservative"
     MODERATE = "moderate"
     AGGRESSIVE = "aggressive"
 
 
-class AccountType(str, Enum):
+class AccountType(StrEnum):
     INDIVIDUAL = "individual"
     IRA = "ira"
     ROTH_IRA = "roth_ira"
@@ -20,21 +20,21 @@ class AccountType(str, Enum):
     TRUST = "trust"
 
 
-class Jurisdiction(str, Enum):
+class Jurisdiction(StrEnum):
     US = "us"
     CA = "ca"
     EU = "eu"
     UK = "uk"
 
 
-class HITLPriority(str, Enum):
+class HITLPriority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class DeploymentSlot(str, Enum):
+class DeploymentSlot(StrEnum):
     BLUE = "blue"
     GREEN = "green"
     SHADOW = "shadow"

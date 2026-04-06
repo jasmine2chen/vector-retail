@@ -58,7 +58,9 @@ class CircuitBreaker:
     def record_failure(self) -> None:
         """Called after a failed API call — may open the circuit."""
         self._failures += 1
-        self._log.warning("circuit_failure_recorded", failures=self._failures, max=self.max_failures)
+        self._log.warning(
+            "circuit_failure_recorded", failures=self._failures, max=self.max_failures
+        )
         if self._failures >= self.max_failures:
             self._opened_at = time.time()
             self._log.error(

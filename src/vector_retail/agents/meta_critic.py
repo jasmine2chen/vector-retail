@@ -63,7 +63,7 @@ class MetaCriticAgent(BaseFinanceAgent):
 
         # ── 2. Policy flag sweep ───────────────────────────────────────────
         all_policy_flags: list[str] = []
-        for agent_id, result in results.items():
+        for _agent_id, result in results.items():
             agent_flags = result.get("policy_flags", [])
             all_policy_flags.extend(agent_flags)
 

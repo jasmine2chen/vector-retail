@@ -65,7 +65,9 @@ class TaxOptimizationAgent(BaseFinanceAgent):
                     "unrealised_loss_usd": round(pnl, 2),
                     "holding_days": holding_days,
                     "is_long_term": is_long_term,
-                    "tax_treatment": "long-term capital loss" if is_long_term else "short-term capital loss",
+                    "tax_treatment": (
+                        "long-term capital loss" if is_long_term else "short-term capital loss"
+                    ),
                     "wash_sale_caution": "Verify 30-day rule before selling and repurchasing",
                 })
                 reasoning.append(
@@ -88,14 +90,15 @@ class TaxOptimizationAgent(BaseFinanceAgent):
         llm_commentary = self._call_llm(
             system_prompt=(
                 "You are a tax-aware investment analyst. Provide general tax observations only — "
-                "NOT specific tax advice. Always direct clients to a qualified CPA or tax attorney. "
-                "Mention wash-sale rules and relevant account type implications. "
+                "NOT specific tax advice. Always direct clients to a qualified CPA or tax "
+                "attorney. Mention wash-sale rules and relevant account type implications. "
                 f"Account type: {profile.account_type.value}. "
                 f"Jurisdiction: {profile.jurisdiction.value}."
             ),
             user_content=(
                 f"Query: {state.user_query}\n\n"
-                f"Tax-loss harvesting candidates:\n{json.dumps(loss_harvest_candidates, indent=2)}\n"
+                "Tax-loss harvesting candidates:\n"
+                f"{json.dumps(loss_harvest_candidates, indent=2)}\n"
                 f"Wash-sale warnings: {wash_sale_warnings}\n"
                 f"Account note: {ira_note}\n\n"
                 "Summarise in 3-4 sentences. "
@@ -105,7 +108,10 @@ class TaxOptimizationAgent(BaseFinanceAgent):
 
         self.audit.record(
             "agent", self.AGENT_ID, "completed",
-            {"candidates": len(loss_harvest_candidates), "wash_sale_warnings": len(wash_sale_warnings)},
+            {
+                "candidates": len(loss_harvest_candidates),
+                "wash_sale_warnings": len(wash_sale_warnings),
+            },
         )
 
         # ── Dynamic confidence ─────────────────────────────────────────────
@@ -114,10 +120,18 @@ class TaxOptimizationAgent(BaseFinanceAgent):
             try:
                 datetime.fromisoformat(h.purchase_date)
             except ValueError:
-                conf.penalize("date_parse_failure", f"Invalid purchase_date for {h.symbol}", h.symbol)
+                conf.penalize(
+                    "date_parse_failure",
+                    f"Invalid purchase_date for {h.symbol}",
+                    h.symbol,
+                )
             q = quotes.get(h.symbol, {})
             if "verified_price" not in q:
-                conf.penalize("stale_quote", f"No live quote for {h.symbol}, using cost basis", h.symbol)
+                conf.penalize(
+                    "stale_quote",
+                    f"No live quote for {h.symbol}, using cost basis",
+                    h.symbol,
+                )
         if self._is_llm_error(llm_commentary):
             conf.penalize("llm_failure", "Tax commentary unavailable")
 
@@ -132,7 +146,8 @@ class TaxOptimizationAgent(BaseFinanceAgent):
                 "llm_tax_commentary": llm_commentary,
             },
             recommendations=[
-                f"Review {c['symbol']} for {c['tax_treatment']}: ${abs(c['unrealised_loss_usd']):,.0f} loss"
+                f"Review {c['symbol']} for {c['tax_treatment']}: "
+                f"${abs(c['unrealised_loss_usd']):,.0f} loss"
                 for c in loss_harvest_candidates
             ],
             data_sources=["portfolio_holdings", "yfinance"],

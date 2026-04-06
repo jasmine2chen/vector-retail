@@ -46,7 +46,8 @@ from ..core.policy import POLICY_RULES
 
 log = structlog.get_logger("shadow_eval")
 
-_LLM_JUDGE_SYSTEM_PROMPT = """You are a compliance officer evaluating AI-generated financial advisory responses.
+_LLM_JUDGE_SYSTEM_PROMPT = """You are a compliance officer evaluating AI-generated \
+financial advisory responses.
 Score the response on FOUR dimensions (each 0.0–1.0):
 
 1. factual_grounding (0–1): Are all specific claims (prices, percentages, dollar figures)
