@@ -15,6 +15,7 @@ Features:
   - Graceful degradation: falls back to primary-only if secondary fails
   - Staleness detection and is_stale flag on returned quotes
 """
+
 from __future__ import annotations
 
 import time
@@ -108,7 +109,7 @@ class DataOracle:
         try:
             # Deterministic stub: small variation based on symbol hash for reproducibility
             hash_val = hash(symbol) % 1000 / 100000  # -0.005 to +0.005 range
-            variation = (hash_val - 0.005)  # Within normal bid-ask spread
+            variation = hash_val - 0.005  # Within normal bid-ask spread
             self._cb_secondary.record_success()
             return round(primary_price * (1 + variation), 4)
         except Exception as exc:
@@ -178,7 +179,9 @@ class DataOracle:
                     divergence_pct=round(divergence * 100, 3),
                 )
                 self._audit(
-                    "data_oracle", f"cross_ref_{symbol}", "divergence_flagged",
+                    "data_oracle",
+                    f"cross_ref_{symbol}",
+                    "divergence_flagged",
                     {"divergence_pct": round(divergence * 100, 3)},
                 )
 
@@ -201,8 +204,6 @@ class DataOracle:
         )
         return quote
 
-    def get_portfolio_quotes(
-        self, holdings: list[PortfolioHolding]
-    ) -> dict[str, MarketQuote]:
+    def get_portfolio_quotes(self, holdings: list[PortfolioHolding]) -> dict[str, MarketQuote]:
         """Fetch verified quotes for all holdings."""
         return {h.symbol: self.get_verified_quote(h.symbol) for h in holdings}

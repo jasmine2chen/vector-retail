@@ -12,6 +12,7 @@ IMPORTANT: This agent provides general tax observations ONLY.
            It does NOT provide tax advice. All output directs users
            to a qualified CPA or tax attorney.
 """
+
 from __future__ import annotations
 
 import json
@@ -60,16 +61,18 @@ class TaxOptimizationAgent(BaseFinanceAgent):
             # Tax-loss harvesting candidate
             if pnl < -500:
                 is_long_term = holding_days >= 365
-                loss_harvest_candidates.append({
-                    "symbol": h.symbol,
-                    "unrealised_loss_usd": round(pnl, 2),
-                    "holding_days": holding_days,
-                    "is_long_term": is_long_term,
-                    "tax_treatment": (
-                        "long-term capital loss" if is_long_term else "short-term capital loss"
-                    ),
-                    "wash_sale_caution": "Verify 30-day rule before selling and repurchasing",
-                })
+                loss_harvest_candidates.append(
+                    {
+                        "symbol": h.symbol,
+                        "unrealised_loss_usd": round(pnl, 2),
+                        "holding_days": holding_days,
+                        "is_long_term": is_long_term,
+                        "tax_treatment": (
+                            "long-term capital loss" if is_long_term else "short-term capital loss"
+                        ),
+                        "wash_sale_caution": "Verify 30-day rule before selling and repurchasing",
+                    }
+                )
                 reasoning.append(
                     f"{h.symbol}: harvest candidate, loss ${pnl:,.0f}, "
                     f"{'long' if is_long_term else 'short'}-term ({holding_days}d)"
@@ -107,7 +110,9 @@ class TaxOptimizationAgent(BaseFinanceAgent):
         )
 
         self.audit.record(
-            "agent", self.AGENT_ID, "completed",
+            "agent",
+            self.AGENT_ID,
+            "completed",
             {
                 "candidates": len(loss_harvest_candidates),
                 "wash_sale_warnings": len(wash_sale_warnings),

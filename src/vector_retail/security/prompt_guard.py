@@ -15,6 +15,7 @@ References:
   OWASP LLM Top 10 2025 — LLM01: Prompt Injection
   https://owasp.org/www-project-top-10-for-large-language-model-applications/
 """
+
 from __future__ import annotations
 
 import re

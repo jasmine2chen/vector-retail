@@ -27,6 +27,7 @@ Production note on checkpointing:
   swap to AsyncPostgresSaver (langgraph-checkpoint-postgres) or RedisSaver.
   The graph compilation and invocation API is identical — only the checkpointer changes.
 """
+
 from __future__ import annotations
 
 import os
@@ -69,7 +70,7 @@ def _get_llm() -> ChatAnthropic:
     return ChatAnthropic(
         model="claude-sonnet-4-20250514",
         api_key=api_key,
-        temperature=0.1,    # Low temperature for financial content — consistency over creativity
+        temperature=0.1,  # Low temperature for financial content — consistency over creativity
         max_tokens=1500,
         timeout=30,
     )
@@ -114,13 +115,13 @@ class VectorRetailAgent:
     ) -> Any:
         """Construct the LangGraph state machine for this session."""
 
-        portfolio_agent  = PortfolioAnalysisAgent(self.llm, audit)
-        market_agent     = MarketIntelAgent(self.llm, audit)
-        risk_agent       = RiskAssessmentAgent(self.llm, audit)
-        tax_agent        = TaxOptimizationAgent(self.llm, audit)
-        rebalance_agent  = RebalanceAgent(self.llm, audit)
-        sentiment_agent  = SentimentAnalysisAgent(self.llm, audit)
-        meta_critic      = MetaCriticAgent(self.llm, audit)
+        portfolio_agent = PortfolioAnalysisAgent(self.llm, audit)
+        market_agent = MarketIntelAgent(self.llm, audit)
+        risk_agent = RiskAssessmentAgent(self.llm, audit)
+        tax_agent = TaxOptimizationAgent(self.llm, audit)
+        rebalance_agent = RebalanceAgent(self.llm, audit)
+        sentiment_agent = SentimentAnalysisAgent(self.llm, audit)
+        meta_critic = MetaCriticAgent(self.llm, audit)
 
         # ── Node functions ─────────────────────────────────────────────────
 
@@ -182,10 +183,15 @@ class VectorRetailAgent:
             if gs.needs_revision:
                 gs.revision_critique = result.findings.get("compliance_review")
                 audit.record(
-                    "meta_critic", "reflection_triggered", "info",
-                    {"confidence": result.confidence, "critique_preview": (
-                        gs.revision_critique[:120] if gs.revision_critique else ""
-                    )},
+                    "meta_critic",
+                    "reflection_triggered",
+                    "info",
+                    {
+                        "confidence": result.confidence,
+                        "critique_preview": (
+                            gs.revision_critique[:120] if gs.revision_critique else ""
+                        ),
+                    },
                 )
             return gs.model_dump()
 
@@ -208,7 +214,11 @@ class VectorRetailAgent:
             hitl_ticket = gs.hitl_queue[0] if gs.hitl_queue else None
             # Pass revision_critique when meta-critic flagged medium concern
             gs.final_response = synthesizer.synthesize(
-                gs, agent_results, meta, hitl_ticket, profile,
+                gs,
+                agent_results,
+                meta,
+                hitl_ticket,
+                profile,
                 revision_critique=gs.revision_critique,
             )
             return gs.model_dump()
@@ -226,30 +236,36 @@ class VectorRetailAgent:
                     session_id=gs.session_id,
                     reason="medium_confidence_band",
                 )
-                return "synthesis"   # Bypass hitl_gate — confidence >= 0.75
+                return "synthesis"  # Bypass hitl_gate — confidence >= 0.75
             return "hitl_gate"
 
         # ── Wire the graph ─────────────────────────────────────────────────
         graph = StateGraph(dict)
 
         for name, fn in [
-            ("data_fetch",          data_fetch_node),
-            ("portfolio_analysis",  portfolio_node),
-            ("market_intel",        market_node),
-            ("risk_assessment",     risk_node),
-            ("tax_optimization",    tax_node),
-            ("rebalance",           rebalance_node),
-            ("sentiment_analysis",  sentiment_node),
-            ("meta_critic",         meta_critic_node),
-            ("hitl_gate",           hitl_gate_node),
-            ("synthesis",           synthesis_node),
+            ("data_fetch", data_fetch_node),
+            ("portfolio_analysis", portfolio_node),
+            ("market_intel", market_node),
+            ("risk_assessment", risk_node),
+            ("tax_optimization", tax_node),
+            ("rebalance", rebalance_node),
+            ("sentiment_analysis", sentiment_node),
+            ("meta_critic", meta_critic_node),
+            ("hitl_gate", hitl_gate_node),
+            ("synthesis", synthesis_node),
         ]:
             graph.add_node(name, fn)
 
         # data_fetch fans out to all 6 parallel agents
         graph.set_entry_point("data_fetch")
-        for agent in ["portfolio_analysis", "market_intel", "risk_assessment",
-                      "tax_optimization", "rebalance", "sentiment_analysis"]:
+        for agent in [
+            "portfolio_analysis",
+            "market_intel",
+            "risk_assessment",
+            "tax_optimization",
+            "rebalance",
+            "sentiment_analysis",
+        ]:
             graph.add_edge("data_fetch", agent)
             graph.add_edge(agent, "meta_critic")
 
@@ -315,6 +331,7 @@ class VectorRetailAgent:
 
         # ── Initial graph state ────────────────────────────────────────────
         from .security import pii
+
         initial_state = GraphState(
             session_id=session_id,
             user_query=pii.redact(user_query, session_id=session_id),
@@ -377,30 +394,33 @@ class VectorRetailAgent:
         )
 
         return {
-            "session_id":             session_id,
-            "response":               final_state.final_response,
-            "policy_flags":           final_state.policy_flags,
-            "hitl_escalated":         bool(final_state.hitl_queue),
-            "hitl_tickets":           final_state.hitl_queue,
-            "reflection_applied":     final_state.needs_revision,
-            "agent_confidences":      {
+            "session_id": session_id,
+            "response": final_state.final_response,
+            "policy_flags": final_state.policy_flags,
+            "hitl_escalated": bool(final_state.hitl_queue),
+            "hitl_tickets": final_state.hitl_queue,
+            "reflection_applied": final_state.needs_revision,
+            "agent_confidences": {
                 k: v.get("confidence") for k, v in final_state.agent_results.items()
             },
-            "meta_confidence":        (
+            "meta_confidence": (
                 final_state.meta_audit_result.get("confidence")
-                if final_state.meta_audit_result else None
+                if final_state.meta_audit_result
+                else None
             ),
-            "data_sources":           list({
-                src
-                for v in final_state.agent_results.values()
-                for src in v.get("data_sources", [])
-            }),
-            "total_latency_ms":       total_latency,
-            "audit_chain_integrity":  chain_ok,
-            "audit_trail_length":     len(audit),
-            "shadow_eval_score":      shadow_score,
-            "deployment_slot":        self.deployment_slot.value,
-            "policy_version":         POLICY_VERSION,
+            "data_sources": list(
+                {
+                    src
+                    for v in final_state.agent_results.values()
+                    for src in v.get("data_sources", [])
+                }
+            ),
+            "total_latency_ms": total_latency,
+            "audit_chain_integrity": chain_ok,
+            "audit_trail_length": len(audit),
+            "shadow_eval_score": shadow_score,
+            "deployment_slot": self.deployment_slot.value,
+            "policy_version": POLICY_VERSION,
         }
 
     def resume_hitl_session(
@@ -434,8 +454,8 @@ class VectorRetailAgent:
         if session_id not in self._session_graphs:
             return {
                 "error": "Session not found or expired. "
-                         "In production, use a persistent checkpointer (PostgreSQL/Redis) "
-                         "to survive process restarts.",
+                "In production, use a persistent checkpointer (PostgreSQL/Redis) "
+                "to survive process restarts.",
                 "session_id": session_id,
             }
 
@@ -473,9 +493,9 @@ class VectorRetailAgent:
             return {"error": f"Resume failed: {exc}", "session_id": session_id}
 
         return {
-            "session_id":    session_id,
-            "status":        "completed",
-            "response":      resumed_state.final_response,
+            "session_id": session_id,
+            "status": "completed",
+            "response": resumed_state.final_response,
             "reviewer_notes": reviewer_notes,
-            "policy_flags":  resumed_state.policy_flags,
+            "policy_flags": resumed_state.policy_flags,
         }

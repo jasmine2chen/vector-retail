@@ -5,6 +5,7 @@ Market Intelligence Agent — Layer 3.
 Fetches 1-month returns, volume, 52-week range for each holding.
 Provides balanced, factual market context — no price predictions.
 """
+
 from __future__ import annotations
 
 import time
@@ -36,7 +37,7 @@ class MarketIntelAgent(BaseFinanceAgent):
                 ticker = yf.Ticker(symbol)
                 hist = ticker.history(period="1mo")
                 if not hist.empty and len(hist) > 1:
-                    one_month_return = (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1)
+                    one_month_return = hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1
                     market_context[symbol] = {
                         "1m_return_pct": round(float(one_month_return) * 100, 2),
                         "avg_daily_volume": int(hist["Volume"].mean()),

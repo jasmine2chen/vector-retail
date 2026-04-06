@@ -13,6 +13,7 @@ Implements:
   - KYC clearance gate
   - HITL threshold evaluation
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,7 @@ log = structlog.get_logger("policy_engine")
 
 # ── Load policy rules from config file ────────────────────────────────────────
 _CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config" / "policy_rules.json"
+
 
 def _load_policy() -> dict[str, Any]:
     if _CONFIG_PATH.exists():
@@ -57,6 +59,7 @@ def _load_policy() -> dict[str, Any]:
             "aggressive": 0.02,
         },
     }
+
 
 POLICY_RULES: dict[str, Any] = _load_policy()
 POLICY_VERSION: str = POLICY_RULES.get("version", "2.0.0")
@@ -122,7 +125,9 @@ class PolicyEngine:
             )
             self._log.warning("concentration_breach", symbol=symbol, pct=round(pct, 4), limit=limit)
             self._audit(
-                "policy", f"concentration_check_{symbol}", "failed",
+                "policy",
+                f"concentration_check_{symbol}",
+                "failed",
                 {"symbol": symbol, "pct": round(pct, 4), "limit": limit},
             )
             return False, reason
@@ -143,13 +148,12 @@ class PolicyEngine:
         limit = self.max_sector_pct()
 
         if pct > limit:
-            reason = (
-                f"Sector '{sector}' is {pct:.1%} of portfolio, "
-                f"exceeding {limit:.1%} limit"
-            )
+            reason = f"Sector '{sector}' is {pct:.1%} of portfolio, " f"exceeding {limit:.1%} limit"
             self._log.warning("sector_breach", sector=sector, pct=round(pct, 4))
             self._audit(
-                "policy", f"sector_check_{sector}", "failed",
+                "policy",
+                f"sector_check_{sector}",
+                "failed",
                 {"sector": sector, "pct": round(pct, 4), "limit": limit},
             )
             return False, reason
@@ -215,7 +219,9 @@ class PolicyEngine:
             )
 
         self._audit(
-            "policy", "pre_trade_sweep", "completed",
+            "policy",
+            "pre_trade_sweep",
+            "completed",
             {"symbol": symbol, "flags": flags, "trade_value": trade_value_usd},
         )
 

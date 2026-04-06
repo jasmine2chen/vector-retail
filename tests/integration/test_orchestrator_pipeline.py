@@ -25,6 +25,7 @@ Test philosophy (Andrew Ng's eval-driven development):
 
 Run: pytest tests/integration/ -v
 """
+
 from unittest.mock import MagicMock, patch
 
 from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
@@ -32,6 +33,7 @@ from vector_retail.core.models import PortfolioHolding, UserProfile
 from vector_retail.orchestrator import VectorRetailAgent
 
 # ── Shared fixtures ────────────────────────────────────────────────────────────
+
 
 def _sample_profile(
     kyc_verified: bool = True,
@@ -107,6 +109,7 @@ def _make_agent_with_mocked_llm(mock_llm_class, response_content: str) -> Vector
 
 # ── Structural tests ───────────────────────────────────────────────────────────
 
+
 class TestOrchestratorPipeline:
     """End-to-end structural tests — verify the pipeline completes without error."""
 
@@ -151,7 +154,7 @@ class TestOrchestratorPipeline:
         assert "audit_trail_length" in result
         assert "deployment_slot" in result
         assert "policy_version" in result
-        assert "reflection_applied" in result   # New: reflection loop field
+        assert "reflection_applied" in result  # New: reflection loop field
 
     @patch("vector_retail.orchestrator.ChatAnthropic")
     @patch("vector_retail.data.oracle.yf.Ticker")
@@ -192,6 +195,7 @@ class TestOrchestratorPipeline:
 # These assert on OUTCOMES — that the compliance logic produces the right
 # flags and decisions given specific input conditions.
 # A regulator auditing this system expects these tests to exist and pass.
+
 
 class TestComplianceBusinessLogic:
     """
@@ -241,9 +245,7 @@ class TestComplianceBusinessLogic:
 
     @patch("vector_retail.orchestrator.ChatAnthropic")
     @patch("vector_retail.data.oracle.yf.Ticker")
-    def test_concentrated_position_triggers_concentration_flag(
-        self, mock_ticker, mock_llm_class
-    ):
+    def test_concentrated_position_triggers_concentration_flag(self, mock_ticker, mock_llm_class):
         """
         A single position breaching the concentration limit must trigger a
         CONCENTRATION flag (FINRA Rule 2111 suitability enforcement).
@@ -287,7 +289,7 @@ class TestComplianceBusinessLogic:
         large_holdings = [
             PortfolioHolding(
                 symbol="TSLA",
-                quantity=500,              # 500 × $185 = $92,500 position
+                quantity=500,  # 500 × $185 = $92,500 position
                 cost_basis_per_share=100.0,
                 purchase_date="2022-01-01",
                 sector="Technology",
@@ -388,8 +390,12 @@ class TestComplianceBusinessLogic:
 
         confidences = result.get("agent_confidences", {})
         expected_agents = {
-            "portfolio_analysis", "market_intel", "risk_assessment",
-            "tax_optimization", "rebalance", "sentiment_analysis",
+            "portfolio_analysis",
+            "market_intel",
+            "risk_assessment",
+            "tax_optimization",
+            "rebalance",
+            "sentiment_analysis",
         }
         assert expected_agents.issubset(set(confidences.keys())), (
             f"Missing agent confidence scores. Expected all 6 specialists: {expected_agents}. "
@@ -397,6 +403,6 @@ class TestComplianceBusinessLogic:
         )
         for agent_id, conf in confidences.items():
             if conf is not None:
-                assert 0.0 <= conf <= 1.0, (
-                    f"Agent {agent_id} confidence {conf} out of valid [0.0, 1.0] range."
-                )
+                assert (
+                    0.0 <= conf <= 1.0
+                ), f"Agent {agent_id} confidence {conf} out of valid [0.0, 1.0] range."

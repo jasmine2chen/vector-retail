@@ -11,6 +11,7 @@ Enforces:
   - Revision-aware synthesis when meta-critic flags medium concern
     (implements Andrew Ng's Reflection design pattern)
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -191,7 +192,9 @@ class ResponseSynthesizer:
             )
 
         self._audit(
-            "synthesis", "response_generated", "success",
+            "synthesis",
+            "response_generated",
+            "success",
             {
                 "sources": unique_sources,
                 "revision_applied": revision_critique is not None,

@@ -2,6 +2,7 @@
 tests/unit/test_policy.py
 Unit tests for the Policy Engine.
 """
+
 from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
 from vector_retail.core.models import UserProfile
 from vector_retail.core.policy import PolicyEngine

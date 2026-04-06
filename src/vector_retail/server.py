@@ -9,6 +9,7 @@ Exposes the orchestrator as a REST service:
 Run locally:
     uvicorn vector_retail.server:app --host 0.0.0.0 --port 8080
 """
+
 from __future__ import annotations
 
 import os
@@ -91,8 +92,10 @@ async def verify_api_key(
 
 # ── Request / Response models ────────────────────────────────────────────────
 
+
 class HoldingRequest(BaseModel):
     """Single portfolio holding in the request body."""
+
     symbol: str = Field(..., example="AAPL")
     quantity: int = Field(..., gt=0, example=50)
     cost_basis_per_share: float = Field(..., gt=0, example=145.00)
@@ -103,6 +106,7 @@ class HoldingRequest(BaseModel):
 
 class AdviseRequest(BaseModel):
     """POST /v1/advise request body."""
+
     query: str = Field(
         ...,
         min_length=5,
@@ -111,33 +115,36 @@ class AdviseRequest(BaseModel):
     user: UserProfile
     holdings: list[HoldingRequest] = Field(..., min_length=1)
 
-    model_config = {"json_schema_extra": {
-        "example": {
-            "query": "How is my portfolio performing?",
-            "user": {
-                "name": "Jane Doe",
-                "risk_tolerance": "moderate",
-                "account_type": "individual",
-                "jurisdiction": "us",
-                "kyc_verified": True,
-                "investment_horizon_years": 15,
-            },
-            "holdings": [
-                {
-                    "symbol": "AAPL",
-                    "quantity": 50,
-                    "cost_basis_per_share": 145.00,
-                    "purchase_date": "2022-03-15",
-                    "sector": "Technology",
-                    "asset_class": "equity",
-                }
-            ],
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "query": "How is my portfolio performing?",
+                "user": {
+                    "name": "Jane Doe",
+                    "risk_tolerance": "moderate",
+                    "account_type": "individual",
+                    "jurisdiction": "us",
+                    "kyc_verified": True,
+                    "investment_horizon_years": 15,
+                },
+                "holdings": [
+                    {
+                        "symbol": "AAPL",
+                        "quantity": 50,
+                        "cost_basis_per_share": 145.00,
+                        "purchase_date": "2022-03-15",
+                        "sector": "Technology",
+                        "asset_class": "equity",
+                    }
+                ],
+            }
         }
-    }}
+    }
 
 
 class AdviseResponse(BaseModel):
     """POST /v1/advise response body."""
+
     session_id: str | None = None
     response: str | None = None
     agent_confidences: dict[str, float] | None = None
@@ -153,6 +160,7 @@ class AdviseResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """GET /health response body."""
+
     status: str
     version: str
     deployment_slot: str
