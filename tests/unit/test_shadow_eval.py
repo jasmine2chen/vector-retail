@@ -2,6 +2,7 @@
 tests/unit/test_shadow_eval.py
 Unit tests for shadow evaluation scoring.
 """
+
 from vector_retail.core.enums import DeploymentSlot
 from vector_retail.evaluation.shadow_eval import ShadowEvaluator
 

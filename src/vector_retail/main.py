@@ -7,6 +7,7 @@ Run:
     # or
     python src/vector_retail/main.py
 """
+
 from __future__ import annotations
 
 import os

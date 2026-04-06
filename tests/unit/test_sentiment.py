@@ -12,6 +12,7 @@ Testing strategy:
 
 Run: pytest tests/unit/test_sentiment.py -v
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -22,11 +23,18 @@ from vector_retail.core.models import GraphState, UserProfile
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
+
 def _make_state(symbols: list[str] | None = None) -> GraphState:
     symbols = symbols or ["AAPL", "MSFT"]
     holdings = [
-        {"symbol": sym, "quantity": 10, "cost_basis_per_share": 100.0,
-         "purchase_date": "2023-01-01", "sector": "Technology", "asset_class": "equity"}
+        {
+            "symbol": sym,
+            "quantity": 10,
+            "cost_basis_per_share": 100.0,
+            "purchase_date": "2023-01-01",
+            "sector": "Technology",
+            "asset_class": "equity",
+        }
         for sym in symbols
     ]
     profile = UserProfile(
@@ -58,14 +66,17 @@ def _finbert_output(positive: float, negative: float) -> list[list[dict]]:
     Scores must sum to 1.0 (probability distribution).
     """
     neutral = max(0.0, round(1.0 - positive - negative, 4))
-    return [[
-        {"label": "positive", "score": positive},
-        {"label": "negative", "score": negative},
-        {"label": "neutral",  "score": neutral},
-    ]]
+    return [
+        [
+            {"label": "positive", "score": positive},
+            {"label": "negative", "score": negative},
+            {"label": "neutral", "score": neutral},
+        ]
+    ]
 
 
 # ── SentimentScore unit tests ──────────────────────────────────────────────────
+
 
 class TestSentimentScore:
     """Tests for the SentimentScore value object."""
@@ -106,6 +117,7 @@ class TestSentimentScore:
 
 # ── Agent behaviour tests ──────────────────────────────────────────────────────
 
+
 class TestSentimentAgent:
     """Integration-style unit tests for SentimentAnalysisAgent.run()."""
 
@@ -123,9 +135,7 @@ class TestSentimentAgent:
 
         # Mock FinBERT: all headlines are bullish
         mock_pipeline = MagicMock()
-        mock_pipeline.return_value = (
-            _finbert_output(0.85, 0.05) * 4  # 4 headlines, all bullish
-        )
+        mock_pipeline.return_value = _finbert_output(0.85, 0.05) * 4  # 4 headlines, all bullish
         mock_load_finbert.return_value = mock_pipeline
 
         # Mock yfinance news
@@ -163,9 +173,7 @@ class TestSentimentAgent:
         )
 
         mock_pipeline = MagicMock()
-        mock_pipeline.return_value = (
-            _finbert_output(0.05, 0.80) * 5  # 5 headlines, all bearish
-        )
+        mock_pipeline.return_value = _finbert_output(0.05, 0.80) * 5  # 5 headlines, all bearish
         mock_load_finbert.return_value = mock_pipeline
 
         mock_ticker.return_value.news = [
@@ -193,10 +201,8 @@ class TestSentimentAgent:
           3. Have empty sentiment_scores
         """
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = MagicMock(
-            content="No news available for any holding."
-        )
-        mock_ticker.return_value.news = []   # No news at all
+        mock_llm.invoke.return_value = MagicMock(content="No news available for any holding.")
+        mock_ticker.return_value.news = []  # No news at all
 
         agent = _make_agent(mock_llm)
         state = _make_state(["AAPL"])
@@ -240,9 +246,7 @@ class TestSentimentAgent:
     @patch("vector_retail.agents.sentiment._load_finbert")
     @patch("vector_retail.agents.sentiment.yf.Ticker")
     @patch("vector_retail.orchestrator.ChatAnthropic")
-    def test_multi_symbol_batch_inference(
-        self, mock_llm_class, mock_ticker, mock_load_finbert
-    ):
+    def test_multi_symbol_batch_inference(self, mock_llm_class, mock_ticker, mock_load_finbert):
         """
         Multiple symbols should all appear in sentiment_scores.
         Verifies that batch inference correctly routes results back to symbols.
@@ -255,9 +259,7 @@ class TestSentimentAgent:
         mock_pipeline.return_value = _finbert_output(0.75, 0.10) * 6
         mock_load_finbert.return_value = mock_pipeline
 
-        mock_ticker.return_value.news = [
-            {"title": f"Headline {i}"} for i in range(3)
-        ]
+        mock_ticker.return_value.news = [{"title": f"Headline {i}"} for i in range(3)]
 
         agent = _make_agent(mock_llm)
         state = _make_state(["AAPL", "MSFT"])
@@ -300,16 +302,14 @@ class TestSentimentAgent:
         agent2 = _make_agent(mock_llm)
         result_full = agent2.run(state)
 
-        assert result_thin.confidence < result_full.confidence, (
-            "Thin news should produce lower confidence than ample news"
-        )
+        assert (
+            result_thin.confidence < result_full.confidence
+        ), "Thin news should produce lower confidence than ample news"
 
     @patch("vector_retail.agents.sentiment._load_finbert")
     @patch("vector_retail.agents.sentiment.yf.Ticker")
     @patch("vector_retail.orchestrator.ChatAnthropic")
-    def test_data_sources_always_populated(
-        self, mock_llm_class, mock_ticker, mock_load_finbert
-    ):
+    def test_data_sources_always_populated(self, mock_llm_class, mock_ticker, mock_load_finbert):
         """AgentResult.data_sources must always reference both yfinance and FinBERT."""
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = MagicMock(content="Neutral sentiment overall.")
@@ -323,9 +323,9 @@ class TestSentimentAgent:
         result = agent.run(_make_state(["VTI"]))
 
         assert "yfinance_news" in result.data_sources
-        assert any("finbert" in src for src in result.data_sources), (
-            "data_sources must include the FinBERT model identifier"
-        )
+        assert any(
+            "finbert" in src for src in result.data_sources
+        ), "data_sources must include the FinBERT model identifier"
 
     @patch("vector_retail.agents.sentiment._load_finbert")
     @patch("vector_retail.agents.sentiment.yf.Ticker")

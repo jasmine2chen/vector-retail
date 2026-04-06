@@ -38,6 +38,7 @@ References:
   Araci (2019): https://arxiv.org/abs/1908.10063
   Malo et al. (2014): Financial PhraseBank dataset
 """
+
 from __future__ import annotations
 
 import threading
@@ -59,12 +60,12 @@ log = structlog.get_logger("agent.sentiment")
 # Thread-safe double-checked locking ensures only one load happens concurrently.
 _finbert_pipeline: Any = None
 _finbert_lock = threading.Lock()
-_finbert_load_error: str | None = None   # Cached load error so we fail-fast on retry
+_finbert_load_error: str | None = None  # Cached load error so we fail-fast on retry
 
 _FINBERT_MODEL = "ProsusAI/finbert"
 _MAX_HEADLINES_PER_SYMBOL = 8
-_MAX_SYMBOLS_FOR_SENTIMENT = 10   # Cap to control latency
-_MIN_HEADLINES_FOR_SIGNAL = 2     # Below this we flag low-data confidence
+_MAX_SYMBOLS_FOR_SENTIMENT = 10  # Cap to control latency
+_MIN_HEADLINES_FOR_SIGNAL = 2  # Below this we flag low-data confidence
 
 _FALLBACK_SYSTEM_PROMPT = (
     "You are a market sentiment analyst at a regulated retail brokerage. "
@@ -106,8 +107,8 @@ def _load_finbert() -> Any:
             _finbert_pipeline = pipeline(
                 "text-classification",
                 model=_FINBERT_MODEL,
-                return_all_scores=True,   # Get all three class scores, not just argmax
-                device=-1,                # CPU; set to 0 to use first GPU
+                return_all_scores=True,  # Get all three class scores, not just argmax
+                device=-1,  # CPU; set to 0 to use first GPU
                 truncation=True,
                 max_length=512,
             )
@@ -139,8 +140,13 @@ class SentimentScore:
     """
 
     __slots__ = (
-        "symbol", "positive", "negative", "neutral",
-        "dominant", "n_headlines", "is_bearish",
+        "symbol",
+        "positive",
+        "negative",
+        "neutral",
+        "dominant",
+        "n_headlines",
+        "is_bearish",
     )
 
     def __init__(
@@ -157,7 +163,9 @@ class SentimentScore:
         self.neutral = round(neutral, 4)
         self.n_headlines = n_headlines
         self.dominant = max(
-            ("positive", positive), ("negative", negative), ("neutral", neutral),
+            ("positive", positive),
+            ("negative", negative),
+            ("neutral", neutral),
             key=lambda x: x[1],
         )[0]
         self.is_bearish = negative > 0.40
@@ -236,7 +244,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
 
         # Flatten all headlines into a single list, tracking provenance
         flat_headlines: list[str] = []
-        flat_meta: list[tuple[str, int]] = []   # (symbol, recency_rank)
+        flat_meta: list[tuple[str, int]] = []  # (symbol, recency_rank)
 
         for symbol, items in headlines_by_symbol.items():
             for text, rank in items:
@@ -260,7 +268,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
         }
 
         for (symbol, rank), scores_list in zip(flat_meta, batch_results, strict=False):
-            weight = float(np.exp(-0.15 * rank))   # Recency decay
+            weight = float(np.exp(-0.15 * rank))  # Recency decay
             scores_map = {s["label"].lower(): s["score"] for s in scores_list}
             accum = symbol_accum[symbol]
             accum["positive"].append(scores_map.get("positive", 0.0))
@@ -308,16 +316,16 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                     observed=0,
                 )
 
-        reasoning.append(
-            f"Fetched {total_headlines} headlines across {len(symbols)} symbols"
-        )
+        reasoning.append(f"Fetched {total_headlines} headlines across {len(symbols)} symbols")
 
         symbols_with_news = [s for s, h in headlines_by_symbol.items() if h]
         if not symbols_with_news:
             # No news at all — return gracefully with low confidence
             conf.penalize("missing_quote", "No news available for any holding")
             self.audit.record(
-                "agent", self.AGENT_ID, "completed_no_data",
+                "agent",
+                self.AGENT_ID,
+                "completed_no_data",
                 {"symbols": symbols, "total_headlines": 0},
             )
             return AgentResult(
@@ -391,12 +399,15 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                 )
 
         # ── LLM contextualisation ──────────────────────────────────────────
-        scores_summary = "\n".join(
-            f"  {sym}: positive={s.positive:.0%}, negative={s.negative:.0%}, "
-            f"neutral={s.neutral:.0%}, dominant={s.dominant}, "
-            f"n_headlines={s.n_headlines}, bearish={s.is_bearish}"
-            for sym, s in sentiment_scores.items()
-        ) or "  No scores available."
+        scores_summary = (
+            "\n".join(
+                f"  {sym}: positive={s.positive:.0%}, negative={s.negative:.0%}, "
+                f"neutral={s.neutral:.0%}, dominant={s.dominant}, "
+                f"n_headlines={s.n_headlines}, bearish={s.is_bearish}"
+                for sym, s in sentiment_scores.items()
+            )
+            or "  No scores available."
+        )
 
         system_prompt = get_system_prompt(self.AGENT_ID, fallback=_FALLBACK_SYSTEM_PROMPT)
 
@@ -417,7 +428,9 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
 
         # ── Audit ──────────────────────────────────────────────────────────
         self.audit.record(
-            "agent", self.AGENT_ID, "completed",
+            "agent",
+            self.AGENT_ID,
+            "completed",
             {
                 "symbols_analysed": len(sentiment_scores),
                 "total_headlines": total_headlines,
@@ -433,8 +446,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             reasoning_chain=reasoning,
             findings={
                 "sentiment_scores": {
-                    sym: score.to_dict()
-                    for sym, score in sentiment_scores.items()
+                    sym: score.to_dict() for sym, score in sentiment_scores.items()
                 },
                 "bearish_signals": bearish_signals,
                 "llm_sentiment_commentary": llm_commentary,

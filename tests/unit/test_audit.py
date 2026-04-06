@@ -2,6 +2,7 @@
 tests/unit/test_audit.py
 Unit tests for the immutable hash-chained audit trail.
 """
+
 from vector_retail.core.audit import AuditTrail
 
 

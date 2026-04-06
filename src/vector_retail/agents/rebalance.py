@@ -8,6 +8,7 @@ Flags trades that exceed the HITL threshold for human review.
 Target allocations are risk-profile-driven and defined here as
 class-level data (production: move to config/policy_rules.json).
 """
+
 from __future__ import annotations
 
 import json
@@ -31,8 +32,8 @@ class RebalanceAgent(BaseFinanceAgent):
     # Fallback values used only if config key is missing.
     _FALLBACK_ALLOCATIONS: dict[str, dict[str, float]] = {
         RiskTolerance.CONSERVATIVE: {"equity": 0.40, "fixed_income": 0.50, "cash": 0.10},
-        RiskTolerance.MODERATE:     {"equity": 0.60, "fixed_income": 0.30, "cash": 0.10},
-        RiskTolerance.AGGRESSIVE:   {"equity": 0.80, "fixed_income": 0.15, "cash": 0.05},
+        RiskTolerance.MODERATE: {"equity": 0.60, "fixed_income": 0.30, "cash": 0.10},
+        RiskTolerance.AGGRESSIVE: {"equity": 0.80, "fixed_income": 0.15, "cash": 0.05},
     }
 
     @classmethod
@@ -66,9 +67,7 @@ class RebalanceAgent(BaseFinanceAgent):
             total_val += val
             current_alloc[h.asset_class] = current_alloc.get(h.asset_class, 0) + val
 
-        current_pct = (
-            {k: v / total_val for k, v in current_alloc.items()} if total_val > 0 else {}
-        )
+        current_pct = {k: v / total_val for k, v in current_alloc.items()} if total_val > 0 else {}
 
         target_allocations = self._get_target_allocations()
         target = target_allocations.get(
@@ -93,15 +92,17 @@ class RebalanceAgent(BaseFinanceAgent):
                 action = "REDUCE" if drift > 0 else "INCREASE"
                 hitl_needed = policy.check_trade_hitl_required(abs(drift_usd))
 
-                rebalance_actions.append({
-                    "asset_class": asset_class,
-                    "action": action,
-                    "current_pct": round(current, 4),
-                    "target_pct": round(target_pct, 4),
-                    "drift_pct": round(drift * 100, 1),
-                    "drift_usd": round(drift_usd, 2),
-                    "requires_hitl": hitl_needed,
-                })
+                rebalance_actions.append(
+                    {
+                        "asset_class": asset_class,
+                        "action": action,
+                        "current_pct": round(current, 4),
+                        "target_pct": round(target_pct, 4),
+                        "drift_pct": round(drift * 100, 1),
+                        "drift_usd": round(drift_usd, 2),
+                        "requires_hitl": hitl_needed,
+                    }
+                )
 
                 if hitl_needed:
                     policy_flags.append(
@@ -129,7 +130,9 @@ class RebalanceAgent(BaseFinanceAgent):
         )
 
         self.audit.record(
-            "agent", self.AGENT_ID, "completed",
+            "agent",
+            self.AGENT_ID,
+            "completed",
             {"actions": len(rebalance_actions), "hitl_required": hitl_required},
         )
 

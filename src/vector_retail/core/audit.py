@@ -12,6 +12,7 @@ Any tampering (insert, modify, delete) breaks the chain.
 Production deployment: persist via export() to S3 Object Lock or Azure WORM
 for SOC 2 Type II compliance.
 """
+
 from __future__ import annotations
 
 from typing import Any

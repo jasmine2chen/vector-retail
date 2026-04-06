@@ -23,6 +23,7 @@ Production extensions:
   - Add a SHA-256 hash of the prompt content to AgentResult for forensic audit.
   - Gate prompt promotion behind shadow_eval score threshold (same as blue/green).
 """
+
 from __future__ import annotations
 
 from pathlib import Path

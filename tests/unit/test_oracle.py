@@ -2,6 +2,7 @@
 tests/unit/test_oracle.py
 Unit tests for the data oracle — mocked to avoid live API calls.
 """
+
 from unittest.mock import MagicMock, patch
 
 from vector_retail.core.models import PortfolioHolding
@@ -68,6 +69,7 @@ class TestDataOracle:
 
     def test_circuit_breaker_opens_after_failures(self):
         from vector_retail.data.circuit_breaker import CircuitBreaker
+
         cb = CircuitBreaker("test", max_failures=3, cooldown_seconds=60)
         assert cb.is_open is False
         for _ in range(3):
@@ -76,6 +78,7 @@ class TestDataOracle:
 
     def test_circuit_breaker_resets_on_success(self):
         from vector_retail.data.circuit_breaker import CircuitBreaker
+
         cb = CircuitBreaker("test", max_failures=3, cooldown_seconds=60)
         cb.record_failure()
         cb.record_failure()

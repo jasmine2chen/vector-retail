@@ -10,6 +10,7 @@ Production integration points:
   - Add SLA timers and escalation logic
   - Expose ticket status endpoint for client polling
 """
+
 from __future__ import annotations
 
 import uuid
@@ -36,9 +37,7 @@ class HITLGate:
         self._queue: list[dict[str, Any]] = []
         self._log = log
 
-    def evaluate(
-        self, state: GraphState, meta_result: AgentResult
-    ) -> tuple[bool, HITLPriority]:
+    def evaluate(self, state: GraphState, meta_result: AgentResult) -> tuple[bool, HITLPriority]:
         """
         Determine if HITL is required and assign a priority level.
 
@@ -95,7 +94,9 @@ class HITLGate:
             sla_hours=ticket["sla_hours"],
         )
         self._audit(
-            "hitl", "escalate", f"ticket_{ticket['ticket_id'][:8]}",
+            "hitl",
+            "escalate",
+            f"ticket_{ticket['ticket_id'][:8]}",
             {"priority": priority.value, "flags": meta_result.policy_flags},
         )
         return ticket

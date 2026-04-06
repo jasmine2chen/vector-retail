@@ -11,6 +11,7 @@ In production, augment with Microsoft Presidio for named-entity PII
 
 OWASP LLM Top 10 — LLM06: Sensitive Information Disclosure mitigation.
 """
+
 from __future__ import annotations
 
 import re
@@ -28,17 +29,14 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
     # US Employer Identification Number (EIN: XX-XXXXXXX format)
     (re.compile(r"\b\d{2}-\d{7}\b"), "[TIN-REDACTED]"),
     # Email addresses
-    (re.compile(
-        r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
-    ), "[EMAIL-REDACTED]"),
+    (re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"), "[EMAIL-REDACTED]"),
     # US phone numbers (multiple formats)
-    (re.compile(
-        r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
-    ), "[PHONE-REDACTED]"),
+    (re.compile(r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"), "[PHONE-REDACTED]"),
     # Visa / Mastercard / Amex card numbers
-    (re.compile(
-        r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b"
-    ), "[CARD-REDACTED]"),
+    (
+        re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b"),
+        "[CARD-REDACTED]",
+    ),
     # IBAN (international bank account number)
     (re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{1,30}\b"), "[IBAN-REDACTED]"),
     # Generic 16-digit account numbers (with optional separators)

@@ -3,6 +3,7 @@ core/enums.py
 Centralised domain enumerations.
 All modules import from here — never redefined elsewhere.
 """
+
 from enum import StrEnum
 
 

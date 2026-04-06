@@ -8,6 +8,7 @@ Responsibilities:
   - Run concentration checks via PolicyEngine
   - Produce an LLM-enhanced portfolio health assessment
 """
+
 from __future__ import annotations
 
 import time
@@ -72,9 +73,11 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
             f"P&L ${unrealised_pnl.get(h.symbol, 0):+,.0f}"
             for h in holdings
         )
-        sector_pcts = ", ".join(
-            f"{s}: {v / total_value:.1%}" for s, v in sector_exposure.items()
-        ) if total_value > 0 else "N/A"
+        sector_pcts = (
+            ", ".join(f"{s}: {v / total_value:.1%}" for s, v in sector_exposure.items())
+            if total_value > 0
+            else "N/A"
+        )
 
         llm_assessment = self._call_llm(
             system_prompt=(
@@ -116,7 +119,9 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
             conf.penalize("llm_failure", "LLM assessment unavailable")
 
         self.audit.record(
-            "agent", self.AGENT_ID, "completed",
+            "agent",
+            self.AGENT_ID,
+            "completed",
             {"total_value": round(total_value, 2), "flags": len(concentration_flags)},
         )
 
@@ -128,9 +133,11 @@ class PortfolioAnalysisAgent(BaseFinanceAgent):
                 "total_value_usd": round(total_value, 2),
                 "position_values": {k: round(v, 2) for k, v in position_values.items()},
                 "unrealised_pnl": unrealised_pnl,
-                "sector_exposure_pct": {
-                    s: round(v / total_value, 4) for s, v in sector_exposure.items()
-                } if total_value > 0 else {},
+                "sector_exposure_pct": (
+                    {s: round(v / total_value, 4) for s, v in sector_exposure.items()}
+                    if total_value > 0
+                    else {}
+                ),
                 "llm_assessment": llm_assessment,
             },
             recommendations=concentration_flags,

@@ -12,6 +12,7 @@ The base class provides:
   - Auditable confidence scoring via ConfidenceCalculator
   - Versioned prompts via PromptRegistry
 """
+
 from __future__ import annotations
 
 import os
@@ -86,12 +87,14 @@ class ConfidenceCalculator:
             observed: Optional observed value that triggered the penalty.
         """
         factor = _CONFIDENCE_PENALTIES.get(signal, 0.90)  # conservative default
-        self._penalties.append({
-            "signal": signal,
-            "observed_value": observed,
-            "penalty_factor": factor,
-            "reason": reason,
-        })
+        self._penalties.append(
+            {
+                "signal": signal,
+                "observed_value": observed,
+                "penalty_factor": factor,
+                "reason": reason,
+            }
+        )
 
     def score(self, langfuse_trace: Any = None) -> float:
         """
@@ -110,7 +113,9 @@ class ConfidenceCalculator:
         result = round(max(0.0, min(1.0, result)), 4)
 
         self._audit(
-            "confidence", f"{self._agent_id}_score", "computed",
+            "confidence",
+            f"{self._agent_id}_score",
+            "computed",
             {
                 "final_score": result,
                 "base": self._base,
@@ -246,9 +251,7 @@ class BaseFinanceAgent:
                     generation.end(
                         output=response.content[:1000],
                         usage={
-                            "input": getattr(response, "usage_metadata", {}).get(
-                                "input_tokens", 0
-                            ),
+                            "input": getattr(response, "usage_metadata", {}).get("input_tokens", 0),
                             "output": getattr(response, "usage_metadata", {}).get(
                                 "output_tokens", 0
                             ),
@@ -268,9 +271,7 @@ class BaseFinanceAgent:
                 except Exception as trace_exc:  # noqa: BLE001
                     self._log.debug("langfuse_end_error_failed", error=str(trace_exc))
             self._log.error("llm_call_failed", error=str(exc), latency_ms=latency_ms)
-            self.audit.record(
-                "agent", f"{self.AGENT_ID}_llm_call", "failed", {"error": str(exc)}
-            )
+            self.audit.record("agent", f"{self.AGENT_ID}_llm_call", "failed", {"error": str(exc)})
             return f"[{self.AGENT_ID}] Analysis temporarily unavailable: {exc}"
 
     @staticmethod

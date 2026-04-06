@@ -29,6 +29,7 @@ Overall score = weighted average: 40% heuristic + 60% LLM judge (when available)
 Aggregate score >= 0.80 → PROMOTE recommendation
 Aggregate score <  0.80 → HOLD / investigate
 """
+
 from __future__ import annotations
 
 import json
@@ -133,10 +134,12 @@ class ShadowEvaluator:
         )
 
         try:
-            resp = self._llm.invoke([
-                SystemMessage(content=_LLM_JUDGE_SYSTEM_PROMPT),
-                HumanMessage(content=user_content),
-            ])
+            resp = self._llm.invoke(
+                [
+                    SystemMessage(content=_LLM_JUDGE_SYSTEM_PROMPT),
+                    HumanMessage(content=user_content),
+                ]
+            )
             raw = resp.content.strip()
 
             # Strip markdown code fences if present
@@ -264,7 +267,9 @@ class ShadowEvaluator:
             ground_truth=ground_truth,
         )
         self._audit(
-            "shadow_eval", "evaluate", "complete",
+            "shadow_eval",
+            "evaluate",
+            "complete",
             {
                 "overall": overall,
                 "heuristic": heuristic_combined,

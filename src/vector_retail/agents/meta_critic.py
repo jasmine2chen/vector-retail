@@ -18,6 +18,7 @@ Confidence bands drive downstream routing (Andrew Ng's Reflection pattern):
   - conf  0.75–0.85: revision loop — meta-critic critique fed back to synthesizer
   - conf < 0.75   : HITL escalation (human reviewer required)
 """
+
 from __future__ import annotations
 
 import re
@@ -92,8 +93,7 @@ class MetaCriticAgent(BaseFinanceAgent):
 
         # ── 4. Data verification check ────────────────────────────────────
         unverified = any(
-            not state.quotes.get(sym, {}).get("is_verified", False)
-            for sym in state.quotes
+            not state.quotes.get(sym, {}).get("is_verified", False) for sym in state.quotes
         )
         if unverified:
             flags.append("DATA_QUALITY: One or more prices not dual-source verified")
@@ -144,7 +144,9 @@ class MetaCriticAgent(BaseFinanceAgent):
         )
 
         self.audit.record(
-            "meta_critic", "plan_audit", "completed",
+            "meta_critic",
+            "plan_audit",
+            "completed",
             {
                 "overall_confidence": round(overall_confidence, 4),
                 "flags_count": len(flags),
@@ -152,9 +154,7 @@ class MetaCriticAgent(BaseFinanceAgent):
                 "requires_hitl": requires_hitl,
                 "needs_revision": needs_revision,
                 "confidence_band": (
-                    "hitl" if requires_hitl
-                    else "revision" if needs_revision
-                    else "auto"
+                    "hitl" if requires_hitl else "revision" if needs_revision else "auto"
                 ),
             },
         )
@@ -170,7 +170,7 @@ class MetaCriticAgent(BaseFinanceAgent):
                 "hallucination_signals": hallucination_signals,
                 "agent_confidences": confidences,
                 "data_fully_verified": not unverified,
-                "needs_revision": needs_revision,        # Surfaced for orchestrator routing
+                "needs_revision": needs_revision,  # Surfaced for orchestrator routing
             },
             policy_flags=flags,
             requires_hitl=requires_hitl,

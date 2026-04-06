@@ -11,6 +11,7 @@ VaR methodology: equal-weighted historical simulation over 3-month window.
 Production upgrade: replace with parametric or Monte Carlo VaR with
                     correlation matrix for more accurate portfolio-level VaR.
 """
+
 from __future__ import annotations
 
 import json
@@ -77,9 +78,7 @@ class RiskAssessmentAgent(BaseFinanceAgent):
             reasoning.append(f"{sym} max drawdown (3mo): {max_drawdowns[sym]:.1f}%")
 
         # ── LLM plain-language explanation ────────────────────────────────
-        var_display = (
-            f"${abs(portfolio_var_95_usd):,.0f}" if portfolio_var_95_usd else "N/A"
-        )
+        var_display = f"${abs(portfolio_var_95_usd):,.0f}" if portfolio_var_95_usd else "N/A"
         llm_explanation = self._call_llm(
             system_prompt=(
                 "You are a risk analyst at a regulated retail brokerage. "
@@ -99,7 +98,9 @@ class RiskAssessmentAgent(BaseFinanceAgent):
         )
 
         self.audit.record(
-            "agent", self.AGENT_ID, "completed",
+            "agent",
+            self.AGENT_ID,
+            "completed",
             {"var_95_usd": portfolio_var_95_usd, "holdings_analysed": len(returns_data)},
         )
 
