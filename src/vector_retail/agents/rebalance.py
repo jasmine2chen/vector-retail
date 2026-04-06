@@ -143,7 +143,11 @@ class RebalanceAgent(BaseFinanceAgent):
             conf.penalize("hitl_trade_flagged", "Large trade(s) require human review")
         for asset_class in target:
             if asset_class not in current_pct:
-                conf.penalize("missing_asset_class", f"Portfolio missing target class '{asset_class}'", asset_class)
+                conf.penalize(
+                    "missing_asset_class",
+                    f"Portfolio missing target class '{asset_class}'",
+                    asset_class,
+                )
         if self._is_llm_error(llm_commentary):
             conf.penalize("llm_failure", "Rebalance commentary unavailable")
 

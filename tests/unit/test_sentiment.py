@@ -16,17 +16,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from vector_retail.agents.sentiment import (
-    SentimentAnalysisAgent,
-    SentimentScore,
-    _FINBERT_MODEL,
-    _load_finbert,
-)
+from vector_retail.agents.sentiment import SentimentAnalysisAgent, SentimentScore
 from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
-from vector_retail.core.models import GraphState, PortfolioHolding, UserProfile
-
+from vector_retail.core.models import GraphState, UserProfile
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

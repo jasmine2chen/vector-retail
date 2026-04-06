@@ -25,8 +25,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ..core.models import AgentResult, GraphState
 from ..core.policy import POLICY_RULES
 from ..core.prompts import get_prompt_version
-from ..security import pii
-from ..security import prompt_guard
+from ..security import pii, prompt_guard
 
 if TYPE_CHECKING:
     from ..core.audit import AuditTrail
@@ -128,8 +127,8 @@ class ConfidenceCalculator:
                     value=result,
                     comment=f"{len(self._penalties)} penalties applied",
                 )
-            except Exception:
-                pass  # Observability failure must never affect the main flow
+            except Exception as exc:  # noqa: BLE001
+                log.debug("langfuse_score_failed", error=str(exc))
 
         return result
 
@@ -232,7 +231,8 @@ class BaseFinanceAgent:
                         "agent_id": self.AGENT_ID,
                     },
                 )
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                self._log.debug("langfuse_trace_failed", error=str(exc))
                 generation = None  # Tracing failure must never block the pipeline
 
         # ── 4. LLM invocation ──────────────────────────────────────────────
@@ -255,8 +255,8 @@ class BaseFinanceAgent:
                         },
                         metadata={"latency_ms": latency_ms},
                     )
-                except Exception:
-                    pass
+                except Exception as trace_exc:  # noqa: BLE001
+                    self._log.debug("langfuse_end_failed", error=str(trace_exc))
 
             return response.content
 
@@ -265,8 +265,8 @@ class BaseFinanceAgent:
             if generation:
                 try:
                     generation.end(level="ERROR", status_message=str(exc))
-                except Exception:
-                    pass
+                except Exception as trace_exc:  # noqa: BLE001
+                    self._log.debug("langfuse_end_error_failed", error=str(trace_exc))
             self._log.error("llm_call_failed", error=str(exc), latency_ms=latency_ms)
             self.audit.record(
                 "agent", f"{self.AGENT_ID}_llm_call", "failed", {"error": str(exc)}

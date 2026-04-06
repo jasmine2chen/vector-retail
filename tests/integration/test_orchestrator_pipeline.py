@@ -27,12 +27,9 @@ Run: pytest tests/integration/ -v
 """
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from vector_retail.core.enums import AccountType, Jurisdiction, RiskTolerance
 from vector_retail.core.models import PortfolioHolding, UserProfile
 from vector_retail.orchestrator import VectorRetailAgent
-
 
 # ── Shared fixtures ────────────────────────────────────────────────────────────
 

@@ -175,7 +175,9 @@ class GraphState(BaseModel):
     total_latency_ms: float = 0.0
     shadow_eval: dict[str, Any] | None = None
     # Reflection loop state (Andrew Ng's Reflection design pattern)
-    needs_revision: bool = False               # True when meta-critic flags medium concern (0.75–0.85 conf)
-    revision_critique: str | None = None      # Meta-critic's critique text to feed back to synthesizer
+    # needs_revision=True when meta-critic flags medium concern (0.75–0.85 conf band)
+    needs_revision: bool = False
+    # Meta-critic's critique text to feed back to the synthesizer on revision path
+    revision_critique: str | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

@@ -272,7 +272,7 @@ class VectorRetailAgent:
         user_query: str,
         user_profile: UserProfile,
         holdings: list[PortfolioHolding],
-        auth_token: str = "demo_token_placeholder",
+        auth_token: str = "",
         role: str = "retail_client",
     ) -> dict[str, Any]:
         """
