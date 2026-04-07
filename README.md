@@ -284,27 +284,7 @@ Confidence drives routing, HITL escalation, and is exposed in every API response
 
 ---
 
-## Tech Stack
 
-| Category | Technology | Notes |
-|---|---|---|
-| **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) | State machine, conditional edges, MemorySaver checkpointing |
-| **LLM** | Anthropic Claude Sonnet | `claude-sonnet-4-20250514`, temp=0.1 |
-| **Observability** | [LangFuse](https://langfuse.com) | Per-call traces, confidence scores, prompt versions |
-| **Data validation** | Pydantic v2 | All agent I/O under typed contracts |
-| **Market data** | yfinance + Alpha Vantage | Dual-source cross-validation |
-| **NLP / Sentiment** | [FinBERT](https://huggingface.co/ProsusAI/finbert) (HuggingFace Transformers) | ~97% on Financial PhraseBank; thread-safe singleton, batch inference |
-| **ML baseline** | scikit-learn | TF-IDF + Logistic Regression baseline (research only) |
-| **Logging** | structlog | OpenTelemetry-compatible structured output |
-| **Resilience** | tenacity + custom CircuitBreaker | Exponential backoff, cooldown periods |
-| **Numerical** | NumPy | VaR (historical simulation), max drawdown |
-| **Auth** | python-jose | JWT validation stub (production: Auth0/Okta) |
-| **Server** | FastAPI + Uvicorn | `POST /v1/advise`, `GET /health` |
-| **Testing** | pytest, ruff, black, mypy, bandit, safety | Business logic + compliance assertions |
-| **Deployment** | Docker + Kubernetes | Rolling update strategy, liveness/readiness probes |
-| **CI/CD** | GitHub Actions | Lint, test, security scan, codecov |
-
----
 
 ## Quick Start
 
@@ -321,14 +301,7 @@ cp .env.example .env
 python -m vector_retail.main
 ```
 
-**To run the model evaluation notebook** (FinBERT vs TF-IDF vs Claude):
 
-```bash
-pip install -r requirements-research.txt  # Jupyter, datasets, scikit-learn, scipy
-jupyter notebook notebooks/model_evaluation.ipynb
-# FinBERT weights download once to ~/.cache/huggingface/ (~500MB)
-# Claude baseline uses a cached 100-sample subset (notebooks/cache/claude_predictions.json)
-```
 
 ### Example session output
 
