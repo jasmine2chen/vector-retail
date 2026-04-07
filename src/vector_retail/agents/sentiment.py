@@ -29,9 +29,13 @@ Architecture:
 
 Why FinBERT over general BERT:
   FinBERT is fine-tuned on ~10,000 sentences from financial news and earnings
-  releases. On Financial PhraseBank (all-agree split), it achieves ~97% accuracy
-  versus ~73% for general BERT and ~78% for a TF-IDF + LR baseline.
-  See notebooks/model_evaluation.ipynb for the full baseline comparison.
+  releases. On Financial PhraseBank (all-agree split), it achieves
+  Neg-Recall ~0.96 and MCC ~0.96 versus Neg-Recall ~0.71 / MCC ~0.67 for
+  TF-IDF + LR and Neg-Recall ~0.87 / MCC ~0.86 for Claude Sonnet zero-shot.
+  Metrics reflect banking/finance standards (SR 11-7): negative-class recall
+  captures fiduciary risk of missed bearish signals; MCC is robust to the
+  ~60% neutral class imbalance in financial text.
+  See notebooks/model_evaluation.ipynb for the full benchmark.
 
 References:
   ProsusAI/finbert: https://huggingface.co/ProsusAI/finbert
