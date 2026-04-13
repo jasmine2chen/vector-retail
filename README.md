@@ -1,6 +1,5 @@
 # Vector Retail — Production Finance AI Agent
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Anthropic Claude](https://img.shields.io/badge/LLM-Claude%20Sonnet-blueviolet.svg)](https://www.anthropic.com)
 [![LangFuse](https://img.shields.io/badge/observability-LangFuse-teal.svg)](https://langfuse.com)
