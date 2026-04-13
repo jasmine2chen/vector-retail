@@ -121,6 +121,16 @@ class TestSentimentScore:
 class TestSentimentAgent:
     """Integration-style unit tests for SentimentAnalysisAgent.run()."""
 
+    def setup_method(self):
+        """Disable the RAG retriever for all tests — no ChromaDB in unit tests."""
+        self._retriever_patcher = patch(
+            "vector_retail.agents.sentiment.get_retriever", return_value=None
+        )
+        self._retriever_patcher.start()
+
+    def teardown_method(self):
+        self._retriever_patcher.stop()
+
     @patch("vector_retail.agents.sentiment._load_finbert")
     @patch("vector_retail.agents.sentiment.yf.Ticker")
     @patch("vector_retail.orchestrator.ChatAnthropic")

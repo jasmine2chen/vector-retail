@@ -5,6 +5,7 @@
 [![Anthropic Claude](https://img.shields.io/badge/LLM-Claude%20Sonnet-blueviolet.svg)](https://www.anthropic.com)
 [![LangFuse](https://img.shields.io/badge/observability-LangFuse-teal.svg)](https://langfuse.com)
 [![FinBERT](https://img.shields.io/badge/NLP-FinBERT%20%7C%20HuggingFace-yellow.svg)](https://huggingface.co/ProsusAI/finbert)
+[![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB%20%7C%20SEC%20EDGAR-red.svg)](https://www.trychroma.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A **production-grade multi-agent financial advisor** demonstrating applied AI engineering across the full stack: multi-agent orchestration, evaluation-driven development, LLM observability, prompt security, and compliance governance.
@@ -23,6 +24,7 @@ This project is a deliberate showcase of **production AI engineering** skills ac
 |---|---|
 | **Multi-agent orchestration** | 6 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
 | **Agentic design patterns** | Reflection loop, Tool use, Planning, Multi-agent collaboration (Ng's 4 patterns) |
+| **RAG / Vector DB** | ChromaDB + BAAI/bge-small-en-v1.5 embeddings; SEC EDGAR 10-K/10-Q ingestion pipeline; sentiment agent grounded in company filings |
 | **NLP model evaluation** | FinBERT vs TF-IDF vs Claude zero-shot on Financial PhraseBank; primary metrics: Neg-Recall, MCC, P95 latency, cost per 10K (banking/finance industry standards) |
 | **Evaluation-driven development** | LLM-as-judge shadow evaluator + heuristic scoring + blue/green deployment |
 | **LLM observability** | LangFuse traces per agent call — latency, tokens, confidence, prompt version |
@@ -60,6 +62,12 @@ User Query
   Portfolio    Market     Risk       Tax      Rebalance  Sentiment
   Analysis     Intel   Assessment  Optim.      Agent     Analysis
   (conc. chk) (no pred)(VaR/dd) (TLH/wash) (drift/HITL)(FinBERT)
+                                                          ▲
+                                              ┌───────────┴──────────┐
+                                              │  ChromaDB (RAG)      │
+                                              │  SEC EDGAR 10-K/10-Q │  ← offline ingestion
+                                              │  BAAI/bge-small-en   │
+                                              └──────────────────────┘
         │         │        │         │          │            │
         └─────────┴────────┴────┬────┴──────────┴────────────┘
                             │ fan-in
@@ -189,7 +197,66 @@ Research dependencies (jupyter, datasets, scikit-learn, scipy) are kept in [`req
 
 ---
 
-### 4. LLM Observability (LangFuse)
+### 4. RAG — Company Fundamentals Retrieval (ChromaDB + SEC EDGAR)
+
+The `SentimentAnalysisAgent` is augmented with a **Retrieval-Augmented Generation** layer that grounds LLM commentary in company-specific SEC filings — risk factors from 10-K annual reports and MD&A sections from 10-Q quarterly reports.
+
+**Why RAG here?** News headlines (FinBERT's input) are short and high-frequency; they lack the structured forward-looking language regulators care about. SEC filings contain the exact risk disclosures, liquidity commentary, and management assessments that back up or contradict a bearish signal. Grounding LLM output in primary source documents reduces hallucination risk and satisfies SR 11-7's documentation requirements.
+
+**Pipeline: `scripts/ingest_fundamentals.py`**
+
+```
+SEC EDGAR API  →  SECEdgarClient  →  FilingChunker  →  FundamentalsEmbedder  →  ChromaDB
+(10-K / 10-Q)     (CIK lookup,       (HTML→text,       (embed + upsert,         (cosine HNSW)
+                   rate-limited       400-word chunks    batch=50,
+                   0.12s/req)         50-word overlap)   idempotent)
+```
+
+Run once before first use (idempotent — safe to re-run):
+```bash
+python scripts/ingest_fundamentals.py --symbols AAPL MSFT TSLA NVDA
+python scripts/ingest_fundamentals.py --symbols AAPL --form-type 10-K 10-Q  # both form types
+python scripts/ingest_fundamentals.py --from-holdings holdings.json          # from holdings file
+```
+
+**Runtime: `data/retriever.py`**
+
+- Thread-safe singleton (same double-checked locking pattern as FinBERT)
+- Embedding model: `BAAI/bge-small-en-v1.5` — 130MB, CPU-only, no API key, top MTEB retrieval score for its size class
+- Query is **sentiment-anchored**: bearish signals trigger `"risk factors earnings pressure regulatory"` queries; bullish signals trigger `"growth outlook"` queries — fetching the most contextually relevant filing passages
+- Staleness penalty: confidence is penalised if the newest filing is > 180 days old
+- Top-2 passages per symbol injected into LLM prompt with full provenance (`[10-K 2024-11-01 §risk_factors relevance=0.91]`)
+- Fully degrades if ChromaDB / embedding model unavailable — `get_retriever()` returns `None`, agent continues with headlines only
+
+**Fintech compliance settings:**
+```python
+chromadb.PersistentClient(settings=Settings(
+    anonymized_telemetry=False,  # No external telemetry — fintech requirement
+    allow_reset=False,           # Prevent accidental collection wipe
+))
+```
+
+**AgentResult output with RAG active:**
+```python
+{
+  "findings": {
+    "fundamentals_passages": {
+      "TSLA": [{
+        "filing_type": "10-K", "filed_date": "2024-11-01",
+        "section": "risk_factors", "relevance_score": 0.91, "age_days": 162,
+        "text_preview": "We face significant competition in the electric vehicle market..."
+      }]
+    }
+  },
+  "data_sources": ["yfinance_news", "finbert:ProsusAI/finbert", "sec_fundamentals:chromadb:4_passages"]
+}
+```
+
+**Backend swappability:** The `retrieve()` interface is backend-agnostic. Swap ChromaDB for `pgvector` (reuses existing PostgreSQL session store, ACID guarantees) or Pinecone (managed, no ops overhead) without changing any agent code.
+
+---
+
+### 5. LLM Observability (LangFuse)
 
 Every `_call_llm` invocation creates a LangFuse generation trace with:
 - Agent ID, model name, temperature
@@ -214,7 +281,7 @@ trace.score(name="agent_confidence", value=0.87)
 
 ---
 
-### 5. Prompt Security (OWASP LLM Top 10 #1)
+### 6. Prompt Security (OWASP LLM Top 10 #1)
 
 A dedicated `security/prompt_guard.py` module scans all user input before any LLM call, covering 8 attack categories:
 
@@ -233,7 +300,7 @@ Critical detections return a safe refusal. All detections are recorded to the ha
 
 ---
 
-### 6. Versioned Prompt Registry
+### 7. Versioned Prompt Registry
 
 All system prompts live in `config/prompts/<agent_id>.yaml` alongside `config/policy_rules.json`. This makes prompts **deployable artifacts** — versioned, rollback-able, and A/B testable.
 
@@ -250,7 +317,7 @@ Every `AgentResult` carries `prompt_version`. The `PromptRegistry` supports hot-
 
 ---
 
-### 7. LangGraph Checkpointing + HITL Resume
+### 8. LangGraph Checkpointing + HITL Resume
 
 Each session is compiled with a `MemorySaver` checkpointer, keyed by `thread_id=session_id`. When a session is escalated to human review, its full graph state is persisted. A compliance reviewer can approve and resume:
 
@@ -271,7 +338,7 @@ For production durability, swap `MemorySaver` for `AsyncPostgresSaver` or `Redis
 
 ---
 
-### 8. Auditable Confidence Scoring
+### 9. Auditable Confidence Scoring
 
 Every agent uses a `ConfidenceCalculator` — a multiplicative penalty chain where every deduction is logged with signal name, observed value, and reason. The complete chain is written to the audit trail and emitted as a LangFuse score.
 
@@ -299,6 +366,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # Add ANTHROPIC_API_KEY (required)
 # Add LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY (optional — enables tracing)
+
+# Ingest SEC filings into ChromaDB (one-time; safe to re-run)
+# Downloads ~130MB embedding model on first run; requires internet access
+python scripts/ingest_fundamentals.py --symbols AAPL MSFT TSLA NVDA
+# Skip this step to run without fundamentals context (agent degrades gracefully)
 
 python -m vector_retail.main
 ```
@@ -366,9 +438,9 @@ bandit -r src/ -ll
 safety check -r requirements.txt
 ```
 
-All external dependencies are mocked in tests — no network calls, no API keys required, no FinBERT download:
+All external dependencies are mocked in tests — no network calls, no API keys required, no FinBERT download, no ChromaDB:
 - **Integration tests**: `ChatAnthropic`, `yf.Ticker` (oracle + sentiment), and `_load_finbert` are all patched. Sentiment agent runs in graceful no-data mode.
-- **Unit tests**: FinBERT pipeline is mocked deterministically; all 8 degradation paths tested in < 1s.
+- **Unit tests**: FinBERT pipeline is mocked deterministically; `get_retriever` is patched to return `None` (RAG degrades gracefully); all degradation paths tested in < 1s.
 
 The integration tests assert on **compliance outcomes**, not just pipeline execution:
 
@@ -428,7 +500,7 @@ vector-retail/
 │   │   ├── risk.py            # VaR (historical simulation), max drawdown
 │   │   ├── tax.py             # Tax-loss harvesting, wash-sale (30-day rule)
 │   │   ├── rebalance.py       # Drift detection, HITL-gated trades
-│   │   ├── sentiment.py       # FinBERT news sentiment (6th parallel agent)
+│   │   ├── sentiment.py       # FinBERT + RAG (SEC filings) news sentiment (6th agent)
 │   │   ├── meta_critic.py     # Self-reflective audit + reflection routing
 │   │   └── synthesizer.py     # Revision-aware response synthesis
 │   ├── core/
@@ -438,7 +510,9 @@ vector-retail/
 │   │   └── audit.py           # SHA-256 hash-chained audit trail (SOC 2)
 │   ├── data/
 │   │   ├── oracle.py          # Dual-source market data, caching, staleness
-│   │   └── circuit_breaker.py # Resilience pattern for API calls
+│   │   ├── circuit_breaker.py # Resilience pattern for API calls
+│   │   ├── retriever.py       # ChromaDB singleton — semantic search over SEC filings
+│   │   └── embedder.py        # SEC EDGAR ingestion: fetch → chunk → embed → upsert
 │   ├── evaluation/
 │   │   ├── hitl.py            # HITL escalation gate + SLA-tiered tickets
 │   │   └── shadow_eval.py     # LLM-as-judge + heuristic scoring + blue/green
@@ -457,8 +531,10 @@ vector-retail/
 │       └── ...
 ├── notebooks/
 │   └── model_evaluation.ipynb # FinBERT vs TF-IDF vs Claude on Financial PhraseBank
+├── scripts/
+│   └── ingest_fundamentals.py # Offline SEC EDGAR ingestion CLI (run before first use)
 ├── tests/
-│   ├── unit/                  # Oracle, PII, policy, shadow eval, sentiment (mocked FinBERT)
+│   ├── unit/                  # Oracle, PII, policy, shadow eval, sentiment (mocked FinBERT + RAG)
 │   └── integration/           # End-to-end compliance business logic tests
 ├── docs/
 │   ├── COMPLIANCE.md          # SEC Reg BI, FINRA, NIST AI RMF, SOC 2, GDPR

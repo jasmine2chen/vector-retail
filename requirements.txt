@@ -44,6 +44,16 @@ pyyaml>=6.0.0
 transformers>=4.40.0
 torch>=2.0.0          # CPU inference; set device=0 for GPU in SentimentAgent
 
+# RAG / Vector DB — Company Fundamentals Retrieval (SEC EDGAR 10-K/10-Q)
+# ChromaDB: local persistent vector store (cosine HNSW index, no external service)
+# sentence-transformers: BAAI/bge-small-en-v1.5 embedding model (~130MB, CPU-only)
+# beautifulsoup4 + lxml: HTML extraction from SEC EDGAR filing documents
+# Run offline ingestion before first use: python scripts/ingest_fundamentals.py --symbols AAPL MSFT TSLA NVDA
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
 # ── Production extras (uncomment as needed) ────────────────────────────
 # opentelemetry-sdk>=1.24.0                  # Full OTel traces
 # opentelemetry-exporter-otlp>=1.24.0       # Export to Jaeger/Grafana
