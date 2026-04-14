@@ -18,7 +18,7 @@ A **production-grade multi-agent financial advisor** built with LangGraph, Anthr
 
 | Skill Area | Implementation |
 |---|---|
-| **Multi-agent orchestration** | 5 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
+| **Multi-agent orchestration** | 4 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
 | **Agentic design patterns** | Reflection loop, Tool use, Planning, Multi-agent collaboration (Ng's 4 patterns) |
 | **RAG / Vector DB** | ChromaDB + BAAI/bge-small-en-v1.5 embeddings; SEC EDGAR 10-K/10-Q ingestion pipeline; sentiment agent grounded in company filings |
 | **NLP model evaluation** | FinBERT vs TF-IDF vs Claude zero-shot; primary metrics: Neg-Recall, MCC, P95 latency, cost per 10K |
@@ -47,19 +47,19 @@ User Query
                     │  Circuit breakers  │
                     └─────────┬──────────┘
                               │ fan-out
-        ┌──────────────────┬──┴──────┬──────────┬────────────┐
-        ▼         ▼        ▼         ▼            ▼
-  Portfolio    Market     Risk    Rebalance  Sentiment
-  Analysis     Intel   Assessment   Agent    Analysis
-  (conc. chk) (no pred)(VaR/dd) (drift/HITL)(FinBERT)
-                                                          ▲
-                                              ┌───────────┴──────────┐
-                                              │  ChromaDB (RAG)      │
-                                              │  SEC EDGAR 10-K/10-Q │  ← offline ingestion
-                                              │  BAAI/bge-small-en   │
-                                              └──────────────────────┘
-        │         │        │         │            │
-        └─────────┴────────┴────┬────┴────────────┘
+        ┌──────────────────┬──┴──────┬────────────┐
+        ▼         ▼        ▼            ▼
+  Portfolio    Risk    Rebalance   Sentiment
+  Analysis  Assessment   Agent     Analysis
+ (conc. chk)(VaR/dd) (drift/HITL) (FinBERT)
+                                        ▲
+                            ┌───────────┴──────────┐
+                            │  ChromaDB (RAG)      │
+                            │  SEC EDGAR 10-K/10-Q │  ← offline ingestion
+                            │  BAAI/bge-small-en   │
+                            └──────────────────────┘
+        │         │        │            │
+        └─────────┴────────┴────┬───────┘
                             │ fan-in
                    ┌────────▼────────┐
                    │   Meta-Critic   │  ← self-reflective audit
@@ -92,7 +92,7 @@ User Query
 
 ## NLP Model Evaluation & Selection (FinBERT)
 
-The `SentimentAnalysisAgent` is the 5th parallel specialist — it scores recent news headlines for each holding using [FinBERT](https://huggingface.co/ProsusAI/finbert), a BERT model fine-tuned on financial text (Araci, 2019). The model choice was validated empirically before integration.
+The `SentimentAnalysisAgent` is the 4th parallel specialist — it scores recent news headlines for each holding using [FinBERT](https://huggingface.co/ProsusAI/finbert), a BERT model fine-tuned on financial text (Araci, 2019). The model choice was validated empirically before integration.
 
 **Baseline comparison** — [`notebooks/model_evaluation.ipynb`](notebooks/model_evaluation.ipynb) benchmarks three approaches on [Financial PhraseBank](https://huggingface.co/datasets/financial_phrasebank) (`sentences_allagree`, n=2,264):
 

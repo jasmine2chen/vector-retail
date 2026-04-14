@@ -6,10 +6,9 @@ Builds and runs the full agent graph:
 
   data_fetch
       ├─► portfolio_analysis ─┐
-      ├─► market_intel         │
       ├─► risk_assessment      ├─► meta_critic ─► [router] ─► synthesis ─► END
       ├─► rebalance            │                      │
-      └─► sentiment_analysis ──┘  (FinBERT news sentiment — 5th parallel agent)
+      └─► sentiment_analysis ──┘  (FinBERT news sentiment — 4th parallel agent)
                                                      └──► hitl_gate ─► synthesis ─► END
 
 Router (after meta_critic):
@@ -40,7 +39,6 @@ from langchain_anthropic import ChatAnthropic
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from .agents.market import MarketIntelAgent
 from .agents.meta_critic import MetaCriticAgent
 from .agents.portfolio import PortfolioAnalysisAgent
 from .agents.rebalance import RebalanceAgent
@@ -115,7 +113,6 @@ class VectorRetailAgent:
         """Construct the LangGraph state machine for this session."""
 
         portfolio_agent = PortfolioAnalysisAgent(self.llm, audit)
-        market_agent = MarketIntelAgent(self.llm, audit)
         risk_agent = RiskAssessmentAgent(self.llm, audit)
         rebalance_agent = RebalanceAgent(self.llm, audit)
         sentiment_agent = SentimentAnalysisAgent(self.llm, audit)
@@ -136,12 +133,6 @@ class VectorRetailAgent:
             result = portfolio_agent.run(gs)
             gs.agent_results["portfolio_analysis"] = result.model_dump()
             gs.policy_flags.extend(result.policy_flags)
-            return gs.model_dump()
-
-        def market_node(state: dict) -> dict:
-            gs = GraphState(**state)
-            result = market_agent.run(gs)
-            gs.agent_results["market_intel"] = result.model_dump()
             return gs.model_dump()
 
         def risk_node(state: dict) -> dict:
@@ -236,7 +227,6 @@ class VectorRetailAgent:
         for name, fn in [
             ("data_fetch", data_fetch_node),
             ("portfolio_analysis", portfolio_node),
-            ("market_intel", market_node),
             ("risk_assessment", risk_node),
             ("rebalance", rebalance_node),
             ("sentiment_analysis", sentiment_node),
@@ -250,7 +240,6 @@ class VectorRetailAgent:
         graph.set_entry_point("data_fetch")
         for agent in [
             "portfolio_analysis",
-            "market_intel",
             "risk_assessment",
             "rebalance",
             "sentiment_analysis",
