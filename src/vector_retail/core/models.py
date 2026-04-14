@@ -182,5 +182,8 @@ class GraphState(BaseModel):
     needs_revision: bool = False
     # Meta-critic's critique text to feed back to the synthesizer on revision path
     revision_critique: str | None = None
+    # Regulatory clauses retrieved and injected into the Synthesizer prompt.
+    # Populated by synthesis_node; read by shadow evaluator for grounding validation.
+    regulatory_clauses_used: list[dict[str, Any]] = Field(default_factory=list)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

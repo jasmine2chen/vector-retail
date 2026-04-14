@@ -38,6 +38,13 @@ langfuse>=2.0.0
 # Prompt versioning (YAML-based prompt registry)
 pyyaml>=6.0.0
 
+# RAG / Vector DB — Canadian Regulatory Corpus (OSFI/FINTRAC/CSA)
+# ChromaDB: local persistent vector store (cosine HNSW index, no external service)
+# sentence-transformers: BAAI/bge-small-en-v1.5 embedding model (~130MB, CPU-only)
+# Run offline ingestion before first use: python scripts/ingest_regulatory.py --source-dir data/regulatory/ --regulator OSFI --version-date 2024-11-01
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+
 # NLP — FinBERT sentiment analysis (ProsusAI/finbert via HuggingFace)
 # Downloads ~500MB of model weights on first use (cached to ~/.cache/huggingface/)
 # Pre-bake into Docker image for production: RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ProsusAI/finbert')"

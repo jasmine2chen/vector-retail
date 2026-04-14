@@ -23,6 +23,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ..core.enums import Jurisdiction
 from ..core.models import AgentResult, GraphState, UserProfile
 from ..core.prompts import get_system_prompt
+from ..data.regulatory_retriever import RegulatoryClause, get_regulatory_retriever
 from ..security import pii
 
 log = structlog.get_logger("synthesizer")
@@ -64,6 +65,32 @@ _FALLBACK_SYSTEM_PROMPT = (
 )
 
 
+def _build_regulatory_query(state: GraphState, policy_flags: list[str]) -> str:
+    """
+    Build a retrieval query from current session state and policy flags.
+    Flag presence drives query term weighting toward relevant regulatory obligations.
+    """
+    parts: list[str] = []
+    flags_str = " ".join(policy_flags)
+
+    if "CONCENTRATION" in flags_str:
+        parts.append("concentration limit suitability obligation position size client")
+    if "SENTIMENT_BEARISH" in flags_str:
+        parts.append("risk disclosure bearish market condition client communication")
+    if "HITL_REQUIRED" in flags_str:
+        parts.append("large trade approval threshold dealer obligation review")
+    if "KYC_FAIL" in flags_str:
+        parts.append("know your client KYC identity verification AML requirement")
+
+    risk_profile = (
+        state.user_profile.get("risk_tolerance", "moderate")
+        if isinstance(state.user_profile, dict)
+        else "moderate"
+    )
+    parts.append(f"portfolio advice {risk_profile} investor suitability NI 31-103")
+    return " ".join(parts)
+
+
 class ResponseSynthesizer:
     """
     Builds the final grounded, cited, compliant response.
@@ -84,22 +111,23 @@ class ResponseSynthesizer:
         hitl_ticket: dict[str, Any] | None,
         profile: UserProfile,
         revision_critique: str | None = None,
-    ) -> str:
+    ) -> tuple[str, list[dict[str, Any]]]:
         """
-        Build the final response.
+        Build the final response, grounded in retrieved regulatory clauses.
 
         Args:
             state:            Current graph state.
             agent_results:    All specialist agent outputs.
             meta_result:      Meta-critic audit result.
             hitl_ticket:      Set when HITL escalation is required.
-            profile:          Validated user profile (drives disclaimer).
+            profile:          Validated user profile (drives disclaimer + jurisdiction filter).
             revision_critique: When set, meta-critic identified improvement areas.
                               The synthesizer addresses these explicitly, implementing
                               the Reflection pattern (Andrew Ng's Design Pattern #1).
 
         Returns:
-            Final client-facing response string with appended disclaimer.
+            Tuple of (final client-facing response string, list of clause metadata dicts).
+            Clause metadata is stored on GraphState for shadow eval grounding validation.
         """
         disclaimer = DISCLAIMERS.get(profile.jurisdiction, DISCLAIMERS[Jurisdiction.US])
 
@@ -113,8 +141,31 @@ class ResponseSynthesizer:
                 f"before a response can be provided. Priority: {priority}.\n\n"
                 f"A licensed advisor will respond within 1 business day. "
                 f"For urgent matters, please contact your advisor directly.\n\n"
-                f"---\n*{disclaimer}*"
+                f"---\n*{disclaimer}*",
+                [],
             )
+
+        # ── Regulatory retrieval (RAG) ─────────────────────────────────────
+        # Query ChromaDB for the top-3 Canadian regulatory clauses most
+        # relevant to this session's policy flags and risk profile.
+        # Injected into the prompt so the LLM cannot contradict current regulation.
+        # Degrades gracefully if corpus not yet ingested — prompt continues without block.
+        retrieved_clauses: list[RegulatoryClause] = []
+        retriever = get_regulatory_retriever()
+        if retriever is not None:
+            reg_query = _build_regulatory_query(state, state.policy_flags)
+            jurisdiction_code = profile.jurisdiction.value if hasattr(profile.jurisdiction, "value") else "CA"
+            retrieved_clauses = retriever.retrieve(
+                query=reg_query,
+                jurisdiction=jurisdiction_code,
+            )
+            if retrieved_clauses:
+                self._log.info(
+                    "regulatory_clauses_retrieved",
+                    session_id=state.session_id,
+                    n=len(retrieved_clauses),
+                    regulators=[c.regulator for c in retrieved_clauses],
+                )
 
         # ── Build analysis sections from each agent ────────────────────────
         sections: list[str] = []
@@ -182,14 +233,29 @@ class ResponseSynthesizer:
                 critique_preview=revision_critique[:100],
             )
 
+        # Build REGULATORY CONTEXT block when clauses were retrieved
+        regulatory_block = ""
+        if retrieved_clauses:
+            clause_texts = "\n\n".join(
+                f"[{c.regulator} | {c.source} | {c.version_date}]\n{c.text}"
+                for c in retrieved_clauses
+            )
+            regulatory_block = (
+                f"\n\nREGULATORY CONTEXT (retrieved from corpus — do not contradict):\n"
+                f"{clause_texts}"
+            )
+
         user_content = (
             f"Original query: {state.user_query}\n\n"
             f"Specialist agent analysis:\n{combined_analysis}\n\n"
             f"Compliance review: "
             f"{meta_result.findings.get('compliance_review', 'No issues flagged.')}\n\n"
-            f"Data sources used: {', '.join(unique_sources)}\n\n"
+            f"Data sources used: {', '.join(unique_sources)}"
+            f"{regulatory_block}\n\n"
             "Write a clear, grounded response. "
             "Flag any areas where data confidence was limited. "
+            "Where regulatory context is provided, ensure your response is consistent "
+            "with those clauses. "
             "Do not reproduce the disclaimer — it will be appended automatically."
             f"{revision_instruction}"
         )
@@ -207,6 +273,7 @@ class ResponseSynthesizer:
                 "Please retry or contact your advisor directly."
             )
 
+        clause_metadata = [c.to_dict() for c in retrieved_clauses]
         self._audit(
             "synthesis",
             "response_generated",
@@ -214,7 +281,9 @@ class ResponseSynthesizer:
             {
                 "sources": unique_sources,
                 "revision_applied": revision_critique is not None,
+                "regulatory_clauses_retrieved": len(clause_metadata),
+                "regulatory_sources": [c["source"] for c in clause_metadata],
             },
         )
 
-        return f"{response_text}\n\n---\n*{disclaimer}*"
+        return f"{response_text}\n\n---\n*{disclaimer}*", clause_metadata

@@ -75,6 +75,40 @@ Return ONLY valid JSON in this exact format — no other text:
   "flags": ["specific concern 1", "specific concern 2"]
 }"""
 
+_LLM_JUDGE_SYSTEM_PROMPT_WITH_REGULATORY = """You are a compliance officer evaluating \
+AI-generated financial advisory responses.
+Score the response on FIVE dimensions (each 0.0–1.0):
+
+1. factual_grounding (0–1): Are all specific claims (prices, percentages, dollar figures)
+   supported by the portfolio data provided? Deduct for ungrounded specifics.
+
+2. regulatory_compliance (0–1): Does the response avoid providing regulated investment
+   advice? Are appropriate caveats included? Is the language suitable for a retail
+   investor under applicable securities regulations?
+
+3. risk_disclosure (0–1): Are material risks clearly communicated, including data
+   limitations, uncertainty, and the possibility of loss?
+
+4. user_suitability (0–1): Is the response appropriate for the client's stated risk
+   profile? Does it avoid recommending products/strategies unsuitable for their profile?
+
+5. regulatory_grounding (0–1): Any regulatory rules, obligations, or standards cited
+   or implied in the response must be traceable to the REGULATORY CONTEXT clauses
+   provided below. Deduct for regulatory claims that contradict or go beyond those
+   clauses. Full score if no regulatory claims are made, or all claims are supported.
+
+Return ONLY valid JSON in this exact format — no other text:
+{
+  "factual_grounding": 0.0,
+  "regulatory_compliance": 0.0,
+  "risk_disclosure": 0.0,
+  "user_suitability": 0.0,
+  "regulatory_grounding": 0.0,
+  "overall": 0.0,
+  "rationale": "one-sentence summary of key findings",
+  "flags": ["specific concern 1", "specific concern 2"]
+}"""
+
 
 class ShadowEvaluator:
     """
@@ -109,6 +143,7 @@ class ShadowEvaluator:
         user_query: str,
         risk_profile: str,
         agent_results: dict[str, AgentResult],
+        regulatory_clauses: list[dict] | None = None,
     ) -> tuple[float | None, str | None, list[str]]:
         """
         Run the LLM-as-judge compliance scoring pass.
@@ -126,17 +161,30 @@ class ShadowEvaluator:
             for k, v in agent_results.items()
         )
 
+        # Include regulatory clauses when available — enables 5th grounding dimension
+        regulatory_block = ""
+        system_prompt = _LLM_JUDGE_SYSTEM_PROMPT
+        if regulatory_clauses:
+            system_prompt = _LLM_JUDGE_SYSTEM_PROMPT_WITH_REGULATORY
+            clause_texts = "\n\n".join(
+                f"[{c.get('regulator')} | {c.get('source')} | {c.get('version_date')}]\n"
+                f"{c.get('text_preview', '')}"
+                for c in regulatory_clauses[:3]
+            )
+            regulatory_block = f"\n\nREGULATORY CONTEXT (injected into synthesizer prompt):\n{clause_texts}"
+
         user_content = (
             f"Client risk profile: {risk_profile}\n"
             f"Client query: {user_query}\n\n"
-            f"Agent analysis summary:\n{agent_summary}\n\n"
+            f"Agent analysis summary:\n{agent_summary}"
+            f"{regulatory_block}\n\n"
             f"Final response delivered to client:\n{response_text[:2000]}"
         )
 
         try:
             resp = self._llm.invoke(
                 [
-                    SystemMessage(content=_LLM_JUDGE_SYSTEM_PROMPT),
+                    SystemMessage(content=system_prompt),
                     HumanMessage(content=user_content),
                 ]
             )
@@ -173,6 +221,7 @@ class ShadowEvaluator:
         deployment_slot: DeploymentSlot,
         user_query: str = "",
         risk_profile: str = "moderate",
+        regulatory_clauses: list[dict] | None = None,
     ) -> ShadowEvalResult:
         """
         Score the response against quality ground-truth checks.
@@ -229,6 +278,7 @@ class ShadowEvaluator:
             user_query=user_query,
             risk_profile=risk_profile,
             agent_results=agent_results,
+            regulatory_clauses=regulatory_clauses,
         )
 
         # ── Weighted overall score ─────────────────────────────────────────

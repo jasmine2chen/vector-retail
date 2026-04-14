@@ -5,9 +5,10 @@
 [![Anthropic Claude](https://img.shields.io/badge/LLM-Claude%20Sonnet-blueviolet.svg)](https://www.anthropic.com)
 [![LangFuse](https://img.shields.io/badge/observability-LangFuse-teal.svg)](https://langfuse.com)
 [![FinBERT](https://img.shields.io/badge/NLP-FinBERT%20%7C%20HuggingFace-yellow.svg)](https://huggingface.co/ProsusAI/finbert)
+[![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB%20%7C%20OSFI%20%2F%20FINTRAC%20%2F%20CSA-red.svg)](https://www.trychroma.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A **production-grade multi-agent financial advisor** built with LangGraph, Anthropic Claude Sonnet, and FinBERT. Demonstrates applied AI engineering across multi-agent orchestration, NLP model evaluation, and LLM observability.
+A **production-grade multi-agent financial advisor** built with LangGraph, Anthropic Claude Sonnet, FinBERT, and ChromaDB. Demonstrates applied AI engineering across multi-agent orchestration, NLP model evaluation, retrieval-augmented generation, and LLM observability.
 
 > **Disclaimer:** For informational and educational purposes only. Not investment advice.
 
@@ -19,6 +20,7 @@ A **production-grade multi-agent financial advisor** built with LangGraph, Anthr
 |---|---|
 | **Multi-agent orchestration** | 4 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
 | **Agentic design patterns** | Reflection loop, Tool use, Planning, Multi-agent collaboration (Ng's 4 patterns) |
+| **RAG / Vector DB** | ChromaDB + BAAI/bge-small-en-v1.5; Canadian regulatory corpus (OSFI/FINTRAC/CSA); Synthesizer grounded in retrieved clauses; 5-dim shadow eval with regulatory grounding check |
 | **NLP model evaluation** | FinBERT vs TF-IDF vs Claude zero-shot; primary metrics: Neg-Recall, MCC, P95 latency, cost per 10K |
 | **LLM observability** | LangFuse traces per agent call — latency, tokens, confidence, prompt version |
 | **Prompt engineering** | Versioned YAML prompt registry; prompts as deployable artifacts with rollback |
@@ -71,6 +73,12 @@ User Query
                    │  grounded resp  │     revision-aware
                    │  + disclaimer   │     jurisdiction-specific
                    └────────┬────────┘
+                            │ ▲
+                ┌───────────┘ └──────────────┐
+                │  ChromaDB (RAG)            │
+                │  OSFI / FINTRAC / CSA      │  ← offline ingestion
+                │  BAAI/bge-small-en-v1.5    │
+                └────────────────────────────┘
                             │
                ┌────────────▼────────────────┐
                │  Shadow Evaluator (10%)      │
@@ -116,6 +124,65 @@ McNemar's test confirms the FinBERT vs TF-IDF gap is statistically significant (
 # Policy flag automatically raised:
 # "SENTIMENT_BEARISH: TSLA — negative sentiment 75% across 5 headlines (threshold: 40%)"
 ```
+
+---
+
+## RAG — Canadian Regulatory Grounding (ChromaDB + OSFI/FINTRAC/CSA)
+
+The `ResponseSynthesizer` is grounded in Canadian regulatory clauses retrieved from a local ChromaDB corpus before every LLM call. This ensures every client-facing response is consistent with current OSFI, FINTRAC, and CSA/IIROC obligations — and that the shadow evaluator can verify it.
+
+**Why at the Synthesizer?** The Synthesizer is the only point where language generation produces client-facing output. Grounding the LLM call at this layer — rather than earlier in the pipeline — means retrieved clauses are always in scope for the final response and cannot be lost across agent hand-offs.
+
+**Corpus sources:**
+
+| Regulator | Documents |
+|---|---|
+| OSFI | B-20 (mortgage underwriting), E-21 (operational risk), advisories |
+| FINTRAC | AML/ATF compliance guidance |
+| CSA / IIROC | NI 31-103 suitability obligations, client disclosure requirements |
+
+**Ingestion pipeline:**
+
+```
+Plain-text docs  →  RegulatoryEmbedder  →  ChromaDB
+(.txt per doc)       (400-word chunks,      (cosine HNSW,
+                      50-word overlap,       .chroma_db/regulatory/)
+                      idempotent)
+```
+
+```bash
+python scripts/ingest_regulatory.py \
+    --source-dir data/regulatory/osfi/ \
+    --regulator OSFI \
+    --jurisdiction CA \
+    --version-date 2024-11-01
+```
+
+**Runtime retrieval (`data/regulatory_retriever.py`):**
+- Query constructed from session policy flags: `CONCENTRATION` → suitability clauses; `HITL_REQUIRED` → large trade approval obligations; `KYC_FAIL` → AML/KYC requirements
+- Filtered by `jurisdiction=CA` — only Canadian regulation returned
+- Top-3 clauses injected as a `REGULATORY CONTEXT` block the LLM cannot contradict
+- Fully degrades if corpus not yet ingested — Synthesizer continues without the block
+
+**Shadow evaluator extension:**
+When clauses are retrieved, the LLM judge gains a **5th dimension** — `regulatory_grounding` — which checks that any regulatory rules cited or implied in the response trace back to the retrieved clauses. This catches hallucinated regulatory claims (e.g. citing a threshold that doesn't appear in the corpus). Overall score remains 40% heuristic + 60% LLM judge.
+
+```python
+{
+  "regulatory_clauses_used": [
+    {"regulator": "OSFI", "source": "OSFI_B20", "version_date": "2024-11-01",
+     "relevance_score": 0.93, "age_days": 165}
+  ]
+}
+```
+
+**Corpus maintenance:**
+
+| Task | Cadence |
+|---|---|
+| Check OSFI/FINTRAC advisory pages | Monthly |
+| Re-run `ingest_regulatory.py` on updated docs | On change |
+| Version-stamp with `--version-date` | Every update |
 
 ---
 

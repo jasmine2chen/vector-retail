@@ -195,7 +195,7 @@ class VectorRetailAgent:
             agent_results = {k: AgentResult(**v) for k, v in gs.agent_results.items()}
             hitl_ticket = gs.hitl_queue[0] if gs.hitl_queue else None
             # Pass revision_critique when meta-critic flagged medium concern
-            gs.final_response = synthesizer.synthesize(
+            gs.final_response, gs.regulatory_clauses_used = synthesizer.synthesize(
                 gs,
                 agent_results,
                 meta,
@@ -353,6 +353,7 @@ class VectorRetailAgent:
                 deployment_slot=self.deployment_slot,
                 user_query=user_query,
                 risk_profile=profile_risk,
+                regulatory_clauses=final_state.regulatory_clauses_used or None,
             )
             shadow_score = eval_result.overall_score
 
