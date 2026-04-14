@@ -53,7 +53,6 @@ import structlog
 import yfinance as yf
 
 from ..core.models import AgentResult, GraphState, PortfolioHolding
-from ..data.retriever import RetrievedPassage, get_retriever
 from .base import BaseFinanceAgent
 
 log = structlog.get_logger("agent.sentiment")
@@ -69,7 +68,6 @@ _FINBERT_MODEL = "ProsusAI/finbert"
 _MAX_HEADLINES_PER_SYMBOL = 8
 _MAX_SYMBOLS_FOR_SENTIMENT = 10  # Cap to control latency
 _MIN_HEADLINES_FOR_SIGNAL = 2  # Below this we flag low-data confidence
-_NEWS_STALE_DAYS = 7  # Penalise confidence if newest article older than this (news ages fast)
 
 
 def _load_finbert() -> Any:
@@ -332,7 +330,6 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                     "sentiment_scores": {},
                     "bearish_signals": [],
                     "model": _FINBERT_MODEL,
-                    "news_articles": {},
                 },
                 data_sources=["yfinance_news"],
                 latency_ms=round((time.time() - t0) * 1000),
@@ -364,42 +361,6 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             model_used = "unavailable"
             reasoning.append(f"FinBERT inference failed — model unavailable: {exc}")
             self._log.warning("finbert_skipped", error=str(exc))
-
-        # ── News context retrieval (RAG) ───────────────────────────────────
-        # Augments LLM commentary with recent news articles retrieved from
-        # ChromaDB. Ingested daily via scripts/ingest_news.py (yfinance →
-        # embed → upsert). Degrades gracefully if ChromaDB or the embedding
-        # model is unavailable (pre-ingestion or dependency absent).
-        news_context: dict[str, list[RetrievedPassage]] = {}
-        retriever = get_retriever()
-        if retriever is not None:
-            for sym in sentiment_scores:
-                # Query anchored to what FinBERT signalled — retrieves
-                # articles most semantically relevant to the observed mood.
-                score = sentiment_scores[sym]
-                query = (
-                    f"{sym} {score.dominant} sentiment "
-                    f"{'earnings pressure sell-off risk' if score.is_bearish else 'growth rally outlook'}"
-                )
-                passages = retriever.retrieve(symbol=sym, query=query)
-                if passages:
-                    news_context[sym] = passages
-                    # Apply staleness penalty when newest article is old
-                    newest_age = retriever.get_newest_age_days(sym)
-                    if newest_age is not None and newest_age > _NEWS_STALE_DAYS:
-                        conf.penalize(
-                            "stale_data",
-                            f"{sym}: news corpus {newest_age}d old (>{_NEWS_STALE_DAYS}d threshold)",
-                            observed=newest_age,
-                        )
-            if news_context:
-                reasoning.append(
-                    f"RAG: retrieved news context for {list(news_context)}"
-                )
-            self._log.debug(
-                "news_context_retrieved",
-                symbols_with_context=list(news_context.keys()),
-            )
 
         # ── Analyse results ────────────────────────────────────────────────
         bearish_signals: list[str] = []
@@ -440,11 +401,7 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             },
         )
 
-        # Build data_sources — include ChromaDB reference if articles were retrieved
         data_sources = ["yfinance_news", f"finbert:{model_used}"]
-        if news_context:
-            total_articles = sum(len(v) for v in news_context.values())
-            data_sources.append(f"market_news:chromadb:{total_articles}_articles")
 
         return AgentResult(
             agent_id=self.AGENT_ID,
@@ -458,20 +415,6 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                 "bearish_signals": bearish_signals,
                 "model": model_used,
                 "total_headlines_analysed": total_headlines,
-                "news_articles": {
-                    sym: [
-                        {
-                            "source": p.source,
-                            "published_date": p.published_date,
-                            "url": p.url,
-                            "relevance_score": p.relevance_score,
-                            "age_days": p.age_days,
-                            "text_preview": p.text[:200],
-                        }
-                        for p in passages[:2]
-                    ]
-                    for sym, passages in news_context.items()
-                },
             },
             policy_flags=policy_flags,
             data_sources=data_sources,

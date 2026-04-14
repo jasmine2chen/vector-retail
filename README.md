@@ -5,10 +5,9 @@
 [![Anthropic Claude](https://img.shields.io/badge/LLM-Claude%20Sonnet-blueviolet.svg)](https://www.anthropic.com)
 [![LangFuse](https://img.shields.io/badge/observability-LangFuse-teal.svg)](https://langfuse.com)
 [![FinBERT](https://img.shields.io/badge/NLP-FinBERT%20%7C%20HuggingFace-yellow.svg)](https://huggingface.co/ProsusAI/finbert)
-[![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB%20%7C%20SEC%20EDGAR-red.svg)](https://www.trychroma.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A **production-grade multi-agent financial advisor** built with LangGraph, Anthropic Claude Sonnet, FinBERT, and ChromaDB. Demonstrates applied AI engineering across multi-agent orchestration, NLP model evaluation, retrieval-augmented generation, and LLM observability.
+A **production-grade multi-agent financial advisor** built with LangGraph, Anthropic Claude Sonnet, and FinBERT. Demonstrates applied AI engineering across multi-agent orchestration, NLP model evaluation, and LLM observability.
 
 > **Disclaimer:** For informational and educational purposes only. Not investment advice.
 
@@ -20,7 +19,6 @@ A **production-grade multi-agent financial advisor** built with LangGraph, Anthr
 |---|---|
 | **Multi-agent orchestration** | 4 parallel specialist agents + meta-critic, fan-out/fan-in via LangGraph |
 | **Agentic design patterns** | Reflection loop, Tool use, Planning, Multi-agent collaboration (Ng's 4 patterns) |
-| **RAG / Vector DB** | ChromaDB + BAAI/bge-small-en-v1.5 embeddings; SEC EDGAR 10-K/10-Q ingestion pipeline; sentiment agent grounded in company filings |
 | **NLP model evaluation** | FinBERT vs TF-IDF vs Claude zero-shot; primary metrics: Neg-Recall, MCC, P95 latency, cost per 10K |
 | **LLM observability** | LangFuse traces per agent call — latency, tokens, confidence, prompt version |
 | **Prompt engineering** | Versioned YAML prompt registry; prompts as deployable artifacts with rollback |
@@ -52,12 +50,6 @@ User Query
   Portfolio    Risk    Rebalance   Sentiment
   Analysis  Assessment   Agent     Analysis
  (conc. chk)(VaR/dd) (drift/HITL) (FinBERT)
-                                        ▲
-                            ┌───────────┴──────────┐
-                            │  ChromaDB (RAG)      │
-                            │  yfinance news feed  │  ← daily ingestion
-                            │  BAAI/bge-small-en   │
-                            └──────────────────────┘
         │         │        │            │
         └─────────┴────────┴────┬───────┘
                             │ fan-in
@@ -124,51 +116,6 @@ McNemar's test confirms the FinBERT vs TF-IDF gap is statistically significant (
 # Policy flag automatically raised:
 # "SENTIMENT_BEARISH: TSLA — negative sentiment 75% across 5 headlines (threshold: 40%)"
 ```
-
----
-
-## RAG — Real-Time News Retrieval (ChromaDB + yfinance)
-
-The `SentimentAnalysisAgent` is augmented with a **Retrieval-Augmented Generation** layer that grounds LLM commentary in the most semantically relevant **recent news articles** for each holding — pulled from the same yfinance feed already used for headline scoring.
-
-**Why news articles over SEC filings?** FinBERT already scores current market mood from today's headlines. SEC 10-K/10-Q filings are 30–365 days old and backward-looking — they don't reflect why TSLA dropped 8% this week. News articles from the past 7 days capture analyst reactions, earnings surprises, rating changes, and macro events: the actual signals driving current sentiment. RAG over real-time news gives the LLM specific, current context to ground its commentary rather than stale quarterly disclosures.
-
-**Ingestion pipeline:**
-
-```
-yfinance.Ticker.news  →  NewsEmbedder  →  ChromaDB
-(title, publisher,        (enrich text,    (cosine HNSW,
- relatedTickers,           embed + upsert,  .chroma_db/market_news/)
- providerPublishTime)      idempotent)
-```
-
-```bash
-# Run daily to keep the corpus fresh (cron/scheduler)
-python scripts/ingest_news.py --symbols AAPL MSFT TSLA NVDA
-python scripts/ingest_news.py --from-holdings holdings.json
-```
-
-**Runtime retrieval (`data/retriever.py`):**
-- Thread-safe singleton — same double-checked locking pattern as FinBERT
-- Embedding model: `BAAI/bge-small-en-v1.5` — 130MB, CPU-only, no API key, top MTEB retrieval score for its size class
-- **Sentiment-anchored queries**: a bearish FinBERT signal rewrites the ChromaDB query toward `"earnings pressure sell-off risk"` — fetching the most contextually relevant recent articles
-- Staleness penalty: confidence penalised if newest article > **7 days** old (news ages fast)
-- Top-2 articles per symbol injected into LLM prompt with provenance: `[Reuters 2025-04-12 relevance=0.91]`
-- Fully degrades if ChromaDB unavailable — `get_retriever()` returns `None`, agent continues with headlines only
-
-```python
-{
-  "data_sources": ["yfinance_news", "finbert:ProsusAI/finbert", "market_news:chromadb:4_articles"],
-  "findings": {
-    "news_articles": {
-      "TSLA": [{"source": "Reuters", "published_date": "2025-04-12",
-                "relevance_score": 0.91, "age_days": 1}]
-    }
-  }
-}
-```
-
-**Backend swappability:** The `retrieve()` interface is backend-agnostic. Swap ChromaDB for `pgvector` or Pinecone without changing any agent code.
 
 ---
 
