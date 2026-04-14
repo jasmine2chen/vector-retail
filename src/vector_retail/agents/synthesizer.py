@@ -116,7 +116,7 @@ class ResponseSynthesizer:
                 f"---\n*{disclaimer}*"
             )
 
-        # ── Extract LLM commentary from each agent ─────────────────────────
+        # ── Build analysis sections from each agent ────────────────────────
         sections: list[str] = []
         all_sources: list[str] = []
 
@@ -124,11 +124,27 @@ class ResponseSynthesizer:
             agent_label = agent_id.replace("_", " ").title()
             findings = result.findings
 
+            # Prefer LLM commentary if present (meta_critic, synthesizer passes)
             commentary = ""
             for key, val in findings.items():
                 if key.startswith("llm_") and isinstance(val, str) and len(val) > 20:
                     commentary = val
                     break
+
+            # Sentiment agent: build structured summary from raw FinBERT scores
+            if not commentary and agent_id == "sentiment_analysis":
+                scores = findings.get("sentiment_scores", {})
+                bearish = findings.get("bearish_signals", [])
+                if scores:
+                    lines = [
+                        f"  {sym}: positive={s['positive']:.0%}, negative={s['negative']:.0%}, "
+                        f"neutral={s['neutral']:.0%}, dominant={s['dominant']}, "
+                        f"headlines={s['n_headlines']}, bearish={'yes' if s['is_bearish'] else 'no'}"
+                        for sym, s in scores.items()
+                    ]
+                    commentary = "FinBERT sentiment scores:\n" + "\n".join(lines)
+                    if bearish:
+                        commentary += f"\nBearish signals: {', '.join(bearish)}"
 
             if commentary:
                 sections.append(f"**{agent_label}**\n{commentary}")

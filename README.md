@@ -55,7 +55,7 @@ User Query
                                         ▲
                             ┌───────────┴──────────┐
                             │  ChromaDB (RAG)      │
-                            │  SEC EDGAR 10-K/10-Q │  ← offline ingestion
+                            │  yfinance news feed  │  ← daily ingestion
                             │  BAAI/bge-small-en   │
                             └──────────────────────┘
         │         │        │            │
@@ -127,42 +127,42 @@ McNemar's test confirms the FinBERT vs TF-IDF gap is statistically significant (
 
 ---
 
-## RAG — Company Fundamentals Retrieval (ChromaDB + SEC EDGAR)
+## RAG — Real-Time News Retrieval (ChromaDB + yfinance)
 
-The `SentimentAnalysisAgent` is augmented with a **Retrieval-Augmented Generation** layer that grounds LLM commentary in company-specific SEC filings — risk factors from 10-K annual reports and MD&A sections from 10-Q quarterly reports.
+The `SentimentAnalysisAgent` is augmented with a **Retrieval-Augmented Generation** layer that grounds LLM commentary in the most semantically relevant **recent news articles** for each holding — pulled from the same yfinance feed already used for headline scoring.
 
-**Why RAG here?** News headlines are short and high-frequency; they lack the structured forward-looking language that backs up or contradicts a bearish signal. SEC filings contain the exact risk disclosures, liquidity commentary, and management assessments that ground LLM output in primary source documents.
+**Why news articles over SEC filings?** FinBERT already scores current market mood from today's headlines. SEC 10-K/10-Q filings are 30–365 days old and backward-looking — they don't reflect why TSLA dropped 8% this week. News articles from the past 7 days capture analyst reactions, earnings surprises, rating changes, and macro events: the actual signals driving current sentiment. RAG over real-time news gives the LLM specific, current context to ground its commentary rather than stale quarterly disclosures.
 
 **Ingestion pipeline:**
 
 ```
-SEC EDGAR API  →  SECEdgarClient  →  FilingChunker  →  FundamentalsEmbedder  →  ChromaDB
-(10-K / 10-Q)     (CIK lookup,       (HTML→text,       (embed + upsert,         (cosine HNSW)
-                   rate-limited       400-word chunks    batch=50,
-                   0.12s/req)         50-word overlap)   idempotent)
+yfinance.Ticker.news  →  NewsEmbedder  →  ChromaDB
+(title, publisher,        (enrich text,    (cosine HNSW,
+ relatedTickers,           embed + upsert,  .chroma_db/market_news/)
+ providerPublishTime)      idempotent)
 ```
 
 ```bash
-python scripts/ingest_fundamentals.py --symbols AAPL MSFT TSLA NVDA
-python scripts/ingest_fundamentals.py --symbols AAPL --form-type 10-K 10-Q
-python scripts/ingest_fundamentals.py --from-holdings holdings.json
+# Run daily to keep the corpus fresh (cron/scheduler)
+python scripts/ingest_news.py --symbols AAPL MSFT TSLA NVDA
+python scripts/ingest_news.py --from-holdings holdings.json
 ```
 
 **Runtime retrieval (`data/retriever.py`):**
 - Thread-safe singleton — same double-checked locking pattern as FinBERT
 - Embedding model: `BAAI/bge-small-en-v1.5` — 130MB, CPU-only, no API key, top MTEB retrieval score for its size class
-- **Sentiment-anchored queries**: a bearish FinBERT signal rewrites the ChromaDB query toward `"risk factors earnings pressure regulatory"` — fetching the most contextually relevant filing passages
-- Staleness penalty: confidence penalised if newest filing > 180 days old
-- Top-2 passages per symbol injected into LLM prompt with full provenance: `[10-K 2024-11-01 §risk_factors relevance=0.91]`
+- **Sentiment-anchored queries**: a bearish FinBERT signal rewrites the ChromaDB query toward `"earnings pressure sell-off risk"` — fetching the most contextually relevant recent articles
+- Staleness penalty: confidence penalised if newest article > **7 days** old (news ages fast)
+- Top-2 articles per symbol injected into LLM prompt with provenance: `[Reuters 2025-04-12 relevance=0.91]`
 - Fully degrades if ChromaDB unavailable — `get_retriever()` returns `None`, agent continues with headlines only
 
 ```python
 {
-  "data_sources": ["yfinance_news", "finbert:ProsusAI/finbert", "sec_fundamentals:chromadb:4_passages"],
+  "data_sources": ["yfinance_news", "finbert:ProsusAI/finbert", "market_news:chromadb:4_articles"],
   "findings": {
-    "fundamentals_passages": {
-      "TSLA": [{"filing_type": "10-K", "filed_date": "2024-11-01",
-                "section": "risk_factors", "relevance_score": 0.91}]
+    "news_articles": {
+      "TSLA": [{"source": "Reuters", "published_date": "2025-04-12",
+                "relevance_score": 0.91, "age_days": 1}]
     }
   }
 }

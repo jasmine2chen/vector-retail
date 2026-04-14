@@ -25,7 +25,6 @@ Architecture:
   - Confidence degrades gracefully:
       * No news available  → penalty applied, neutral sentiment assumed
       * Model load failure → penalty applied, agent returns gracefully
-      * LLM commentary failure → penalty applied, raw scores surfaced
 
 Why FinBERT over general BERT:
   FinBERT is fine-tuned on ~10,000 sentences from financial news and earnings
@@ -54,7 +53,6 @@ import structlog
 import yfinance as yf
 
 from ..core.models import AgentResult, GraphState, PortfolioHolding
-from ..core.prompts import get_system_prompt
 from ..data.retriever import RetrievedPassage, get_retriever
 from .base import BaseFinanceAgent
 
@@ -71,15 +69,7 @@ _FINBERT_MODEL = "ProsusAI/finbert"
 _MAX_HEADLINES_PER_SYMBOL = 8
 _MAX_SYMBOLS_FOR_SENTIMENT = 10  # Cap to control latency
 _MIN_HEADLINES_FOR_SIGNAL = 2  # Below this we flag low-data confidence
-_FUNDAMENTALS_STALE_DAYS = 180  # Penalise confidence if newest filing older than this
-
-_FALLBACK_SYSTEM_PROMPT = (
-    "You are a market sentiment analyst at a regulated retail brokerage. "
-    "Interpret FinBERT sentiment scores from recent news headlines. "
-    "Flag strongly negative signals as potential risk factors. "
-    "Note that sentiment is a noisy, lagging signal — never predict prices from it. "
-    "Be concise (3-5 sentences)."
-)
+_NEWS_STALE_DAYS = 7  # Penalise confidence if newest article older than this (news ages fast)
 
 
 def _load_finbert() -> Any:
@@ -198,7 +188,6 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
     """
 
     AGENT_ID = "sentiment_analysis"
-    PROMPT_FALLBACK = _FALLBACK_SYSTEM_PROMPT
 
     # ── News fetching ──────────────────────────────────────────────────────
 
@@ -342,10 +331,8 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                 findings={
                     "sentiment_scores": {},
                     "bearish_signals": [],
-                    "llm_sentiment_commentary": (
-                        "No recent news headlines were available for any holding."
-                    ),
                     "model": _FINBERT_MODEL,
+                    "news_articles": {},
                 },
                 data_sources=["yfinance_news"],
                 latency_ms=round((time.time() - t0) * 1000),
@@ -378,39 +365,40 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             reasoning.append(f"FinBERT inference failed — model unavailable: {exc}")
             self._log.warning("finbert_skipped", error=str(exc))
 
-        # ── Fundamentals retrieval (RAG) ───────────────────────────────────
-        # Augments LLM commentary with company-specific risk factors and MD&A
-        # passages from SEC filings. Degrades gracefully if ChromaDB or the
-        # embedding model is unavailable (pre-ingestion or dependency absent).
-        fundamentals_context: dict[str, list[RetrievedPassage]] = {}
+        # ── News context retrieval (RAG) ───────────────────────────────────
+        # Augments LLM commentary with recent news articles retrieved from
+        # ChromaDB. Ingested daily via scripts/ingest_news.py (yfinance →
+        # embed → upsert). Degrades gracefully if ChromaDB or the embedding
+        # model is unavailable (pre-ingestion or dependency absent).
+        news_context: dict[str, list[RetrievedPassage]] = {}
         retriever = get_retriever()
         if retriever is not None:
             for sym in sentiment_scores:
-                # Query is anchored to what FinBERT signalled so the retrieval
-                # fetches passages most relevant to the observed sentiment.
+                # Query anchored to what FinBERT signalled — retrieves
+                # articles most semantically relevant to the observed mood.
                 score = sentiment_scores[sym]
                 query = (
-                    f"{sym} {score.dominant} sentiment risk factors "
-                    f"{'earnings pressure regulatory' if score.is_bearish else 'growth outlook'}"
+                    f"{sym} {score.dominant} sentiment "
+                    f"{'earnings pressure sell-off risk' if score.is_bearish else 'growth rally outlook'}"
                 )
                 passages = retriever.retrieve(symbol=sym, query=query)
                 if passages:
-                    fundamentals_context[sym] = passages
-                    # Apply staleness penalty when newest filing is old
+                    news_context[sym] = passages
+                    # Apply staleness penalty when newest article is old
                     newest_age = retriever.get_newest_age_days(sym)
-                    if newest_age is not None and newest_age > _FUNDAMENTALS_STALE_DAYS:
+                    if newest_age is not None and newest_age > _NEWS_STALE_DAYS:
                         conf.penalize(
                             "stale_data",
-                            f"{sym}: fundamentals {newest_age}d old (>{_FUNDAMENTALS_STALE_DAYS}d)",
+                            f"{sym}: news corpus {newest_age}d old (>{_NEWS_STALE_DAYS}d threshold)",
                             observed=newest_age,
                         )
-            if fundamentals_context:
+            if news_context:
                 reasoning.append(
-                    f"RAG: retrieved fundamentals for {list(fundamentals_context)}"
+                    f"RAG: retrieved news context for {list(news_context)}"
                 )
             self._log.debug(
-                "fundamentals_retrieved",
-                symbols_with_context=list(fundamentals_context.keys()),
+                "news_context_retrieved",
+                symbols_with_context=list(news_context.keys()),
             )
 
         # ── Analyse results ────────────────────────────────────────────────
@@ -439,55 +427,6 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                     f"neu={score.neutral:.0%}) from {score.n_headlines} headlines"
                 )
 
-        # ── LLM contextualisation ──────────────────────────────────────────
-        scores_summary = (
-            "\n".join(
-                f"  {sym}: positive={s.positive:.0%}, negative={s.negative:.0%}, "
-                f"neutral={s.neutral:.0%}, dominant={s.dominant}, "
-                f"n_headlines={s.n_headlines}, bearish={s.is_bearish}"
-                for sym, s in sentiment_scores.items()
-            )
-            or "  No scores available."
-        )
-
-        system_prompt = get_system_prompt(self.AGENT_ID, fallback=_FALLBACK_SYSTEM_PROMPT)
-
-        # Build fundamentals context block for LLM prompt
-        fundamentals_block = ""
-        if fundamentals_context:
-            parts: list[str] = []
-            for sym, passages in fundamentals_context.items():
-                top = passages[:2]  # Top-2 passages per symbol to stay within context budget
-                excerpts = "\n".join(
-                    f"    [{p.filing_type} {p.filed_date} §{p.section} "
-                    f"relevance={p.relevance_score:.2f}] {p.text[:300]}…"
-                    for p in top
-                )
-                parts.append(f"  {sym}:\n{excerpts}")
-            fundamentals_block = (
-                "\n\nSEC filing excerpts (retrieved from ChromaDB, "
-                "ranked by semantic relevance to observed sentiment):\n"
-                + "\n".join(parts)
-            )
-
-        llm_commentary = self._call_llm(
-            system_prompt=system_prompt,
-            user_content=(
-                f"Client query: {state.user_query}\n\n"
-                f"FinBERT sentiment scores (model: {model_used}):\n{scores_summary}\n\n"
-                f"Bearish signals: {bearish_signals or 'None'}"
-                f"{fundamentals_block}\n\n"
-                "Interpret these scores for the client. Where SEC filing excerpts "
-                "are provided, ground your commentary in specific risk factors or "
-                "MD&A language from those filings. Flag any bearish signals as risk "
-                "factors. Remind that sentiment is noisy and should not drive "
-                "investment decisions alone."
-            ),
-        )
-
-        if self._is_llm_error(llm_commentary):
-            conf.penalize("llm_failure", "Sentiment commentary LLM call failed")
-
         # ── Audit ──────────────────────────────────────────────────────────
         self.audit.record(
             "agent",
@@ -501,13 +440,11 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
             },
         )
 
-        # Build data_sources — include ChromaDB reference if passages were retrieved
+        # Build data_sources — include ChromaDB reference if articles were retrieved
         data_sources = ["yfinance_news", f"finbert:{model_used}"]
-        if fundamentals_context:
-            total_passages = sum(len(v) for v in fundamentals_context.values())
-            data_sources.append(
-                f"sec_fundamentals:chromadb:{total_passages}_passages"
-            )
+        if news_context:
+            total_articles = sum(len(v) for v in news_context.values())
+            data_sources.append(f"market_news:chromadb:{total_articles}_articles")
 
         return AgentResult(
             agent_id=self.AGENT_ID,
@@ -519,22 +456,21 @@ class SentimentAnalysisAgent(BaseFinanceAgent):
                     sym: score.to_dict() for sym, score in sentiment_scores.items()
                 },
                 "bearish_signals": bearish_signals,
-                "llm_sentiment_commentary": llm_commentary,
                 "model": model_used,
                 "total_headlines_analysed": total_headlines,
-                "fundamentals_passages": {
+                "news_articles": {
                     sym: [
                         {
-                            "filing_type": p.filing_type,
-                            "filed_date": p.filed_date,
-                            "section": p.section,
+                            "source": p.source,
+                            "published_date": p.published_date,
+                            "url": p.url,
                             "relevance_score": p.relevance_score,
                             "age_days": p.age_days,
                             "text_preview": p.text[:200],
                         }
                         for p in passages[:2]
                     ]
-                    for sym, passages in fundamentals_context.items()
+                    for sym, passages in news_context.items()
                 },
             },
             policy_flags=policy_flags,

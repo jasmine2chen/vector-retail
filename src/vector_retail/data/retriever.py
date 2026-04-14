@@ -1,22 +1,29 @@
 """
 data/retriever.py
-Fundamentals Retrieval — RAG layer for the SentimentAnalysisAgent.
+Market News Retrieval — RAG layer for the SentimentAnalysisAgent.
 
-Retrieves semantically relevant passages from SEC filings
-(10-K risk factors, 10-Q MD&A) stored in a local ChromaDB vector collection.
+Retrieves semantically relevant recent news articles from a local ChromaDB
+vector collection. Articles are ingested daily via scripts/ingest_news.py
+(yfinance.Ticker.news → embed → upsert).
+
+Why news instead of SEC filings:
+  SEC filings are 30-365 days old. The sentiment agent scores current market
+  mood from recent headlines — the RAG layer should provide the same signal
+  at article depth, not backward-looking disclosures. A 7-day staleness
+  threshold enforces recency: if the news corpus is older than 7 days,
+  confidence is penalised.
 
 Design principles:
   - Thread-safe singleton — one ChromaDB client per process (mirrors FinBERT pattern)
   - Graceful degradation — empty or unavailable store returns [] with no crash
-  - TTL-aware — passages carry age_days; agent penalises confidence for stale data
-  - Audit-logged — every retrieval records source metadata in the findings dict
+  - TTL-aware — articles carry age_days; agent penalises confidence for stale data
   - Swappable backend — replace ChromaDB with Pinecone/pgvector by implementing
     the same retrieve() interface; no agent code changes required
 
 Collection schema:
-  documents  : chunked filing text (400-word paragraphs with 50-word overlap)
-  metadatas  : {symbol, filing_type, filed_date, section, chunk_index, ingested_at}
-  ids        : "{symbol}_{filing_type}_{filed_date}_{chunk_index}"
+  documents  : enriched article text (title + publisher + related tickers)
+  metadatas  : {symbol, source, published_date, url, article_index, ingested_at}
+  ids        : "{symbol}_{published_date}_{article_index}"
   similarity : cosine (HNSW index)
 
 Embedding model:
@@ -25,12 +32,10 @@ Embedding model:
 
 Production notes:
   - ChromaDB PersistentClient suits single-node deployment (same host as the app).
-  - For multi-pod Kubernetes: swap to pgvector (reuses existing PostgreSQL session
-    store, ACID guarantees) or Pinecone (managed, no ops overhead).
-  - Collection schema is identical regardless of backend.
+  - For multi-pod Kubernetes: swap to pgvector or Pinecone without changing agent code.
 
-Run offline ingestion before first use:
-    python scripts/ingest_fundamentals.py --symbols AAPL MSFT TSLA NVDA
+Ingest before use (run daily to keep corpus fresh):
+    python scripts/ingest_news.py --symbols AAPL MSFT TSLA NVDA
 """
 
 from __future__ import annotations
@@ -43,34 +48,34 @@ from pathlib import Path
 
 import structlog
 
-log = structlog.get_logger("fundamentals.retriever")
+log = structlog.get_logger("news.retriever")
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-_DEFAULT_DB_PATH = Path(os.getenv("FUNDAMENTALS_DB_PATH", ".chroma_db/fundamentals"))
+_DEFAULT_DB_PATH = Path(os.getenv("NEWS_DB_PATH", ".chroma_db/market_news"))
 _DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"   # 130MB; strong MTEB retrieval score
 _DEFAULT_TOP_K = 4
-_STALE_WARN_DAYS = 90     # Warn in logs but still use
-_STALE_PENALISE_DAYS = 180  # Return staleness flag for confidence penalty
+_STALE_WARN_DAYS = 3      # Warn in logs but still use
+_STALE_PENALISE_DAYS = 7  # Return staleness flag for confidence penalty
 
 
 # ── Data contract ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class RetrievedPassage:
-    """A single retrieved chunk from the SEC filing corpus."""
+    """A single retrieved article from the market news corpus."""
 
     symbol: str
     text: str
-    filing_type: str        # "10-K" | "10-Q"
-    filed_date: str         # ISO-8601, e.g. "2024-11-01"
-    section: str            # "risk_factors" | "mda"
+    source: str             # Publisher / news outlet
+    published_date: str     # ISO-8601 date of publication
+    url: str                # Article URL for provenance
     relevance_score: float  # cosine similarity [0, 1]; higher = more relevant
-    age_days: int           # calendar days since filing date
+    age_days: int           # Calendar days since publication
 
 
 # ── Thread-safe singleton ─────────────────────────────────────────────────────
 
-_instance: "FundamentalsRetriever | None" = None
+_instance: "NewsRetriever | None" = None
 _init_lock = threading.Lock()
 _init_error: str | None = None  # Cached so we fail-fast on repeated init attempts
 
@@ -78,9 +83,9 @@ _init_error: str | None = None  # Cached so we fail-fast on repeated init attemp
 def get_retriever(
     db_path: Path = _DEFAULT_DB_PATH,
     model_name: str = _DEFAULT_MODEL,
-) -> "FundamentalsRetriever | None":
+) -> "NewsRetriever | None":
     """
-    Return the process-level singleton FundamentalsRetriever.
+    Return the process-level singleton NewsRetriever.
 
     Returns None — never raises — if ChromaDB or sentence-transformers are
     unavailable, or if the DB path does not exist yet (pre-ingestion).
@@ -101,7 +106,7 @@ def get_retriever(
         if _init_error is not None:
             return None
         try:
-            _instance = FundamentalsRetriever(db_path=db_path, model_name=model_name)
+            _instance = NewsRetriever(db_path=db_path, model_name=model_name)
             log.info("retriever_ready", db_path=str(db_path), model=model_name)
             return _instance
         except Exception as exc:
@@ -112,9 +117,9 @@ def get_retriever(
 
 # ── Retriever ─────────────────────────────────────────────────────────────────
 
-class FundamentalsRetriever:
+class NewsRetriever:
     """
-    Semantic retriever over SEC filing corpus stored in ChromaDB.
+    Semantic retriever over market news corpus stored in ChromaDB.
 
     Instantiate via get_retriever() to ensure singleton behaviour.
     Direct instantiation is fine for testing.
@@ -152,14 +157,14 @@ class FundamentalsRetriever:
             normalize_embeddings=True,       # Required for cosine similarity to be correct
         )
         self._collection = self._client.get_or_create_collection(
-            name="sec_fundamentals",
+            name="market_news",
             metadata={"hnsw:space": "cosine"},
             embedding_function=self._ef,
         )
         self._log.info(
             "collection_loaded",
-            name="sec_fundamentals",
-            total_chunks=self._collection.count(),
+            name="market_news",
+            total_articles=self._collection.count(),
         )
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -171,10 +176,10 @@ class FundamentalsRetriever:
         top_k: int | None = None,
     ) -> list[RetrievedPassage]:
         """
-        Return top-k passages for symbol semantically relevant to query.
+        Return top-k recent news articles for symbol semantically relevant to query.
 
         Returns [] if:
-          - No documents exist for this symbol (pre-ingestion or CIK not found)
+          - No articles exist for this symbol (not yet ingested)
           - ChromaDB query fails for any reason
         Never raises — caller degrades gracefully on empty result.
         """
@@ -204,9 +209,9 @@ class FundamentalsRetriever:
         today = datetime.now(UTC).date()
         passages: list[RetrievedPassage] = []
         for text, meta, dist in zip(docs, metas, dists):
-            filed = meta.get("filed_date", "")
+            pub_date = meta.get("published_date", "")
             try:
-                age = (today - datetime.fromisoformat(filed).date()).days
+                age = (today - datetime.fromisoformat(pub_date).date()).days
             except ValueError:
                 age = 0
 
@@ -217,9 +222,9 @@ class FundamentalsRetriever:
                 RetrievedPassage(
                     symbol=symbol,
                     text=text,
-                    filing_type=meta.get("filing_type", ""),
-                    filed_date=filed,
-                    section=meta.get("section", ""),
+                    source=meta.get("source", ""),
+                    published_date=pub_date,
+                    url=meta.get("url", ""),
                     relevance_score=relevance,
                     age_days=age,
                 )
@@ -235,7 +240,7 @@ class FundamentalsRetriever:
         return passages
 
     def has_documents(self, symbol: str) -> bool:
-        """True if at least one document exists for this symbol."""
+        """True if at least one article exists for this symbol."""
         try:
             result = self._collection.get(
                 where={"symbol": {"$eq": symbol}},
@@ -248,8 +253,8 @@ class FundamentalsRetriever:
 
     def get_newest_age_days(self, symbol: str) -> int | None:
         """
-        Days since most recent filing for symbol.
-        Returns None if no documents exist.
+        Days since most recent article for symbol.
+        Returns None if no articles exist.
         Used by SentimentAgent to apply staleness confidence penalty.
         """
         try:
@@ -258,9 +263,9 @@ class FundamentalsRetriever:
                 include=["metadatas"],
             )
             dates = [
-                m.get("filed_date", "")
+                m.get("published_date", "")
                 for m in result.get("metadatas", [])
-                if m.get("filed_date")
+                if m.get("published_date")
             ]
             if not dates:
                 return None
@@ -278,7 +283,7 @@ class FundamentalsRetriever:
             return None
 
     def collection_count(self) -> int:
-        """Total chunks in the collection across all symbols."""
+        """Total articles in the collection across all symbols."""
         try:
             return self._collection.count()
         except Exception:
