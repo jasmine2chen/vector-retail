@@ -393,12 +393,11 @@ class TestComplianceBusinessLogic:
             "portfolio_analysis",
             "market_intel",
             "risk_assessment",
-            "tax_optimization",
             "rebalance",
             "sentiment_analysis",
         }
         assert expected_agents.issubset(set(confidences.keys())), (
-            f"Missing agent confidence scores. Expected all 6 specialists: {expected_agents}. "
+            f"Missing agent confidence scores. Expected all 5 specialists: {expected_agents}. "
             f"Got: {set(confidences.keys())}"
         )
         for agent_id, conf in confidences.items():

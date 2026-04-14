@@ -75,7 +75,7 @@ def run_demo() -> dict:
     result = agent.run(
         user_query=(
             "How is my portfolio performing? "
-            "Do I need to rebalance, and are there any tax opportunities I should know about?"
+            "Do I need to rebalance?"
         ),
         user_profile=profile,
         holdings=holdings,

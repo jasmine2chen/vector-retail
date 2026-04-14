@@ -179,15 +179,6 @@ class PolicyEngine:
             return False, reason
         return True, "KYC cleared"
 
-    def check_ira_tax_applicability(self) -> str:
-        """Returns a note when account type affects tax treatment."""
-        if self.profile.account_type in (AccountType.IRA, AccountType.ROTH_IRA):
-            return (
-                "Tax-loss harvesting has limited applicability in tax-advantaged accounts "
-                f"({self.profile.account_type.value.upper()}). Consult a qualified tax advisor."
-            )
-        return ""
-
     # ── Full pre-trade compliance sweep ───────────────────────────────────
 
     def run_pre_trade_checks(

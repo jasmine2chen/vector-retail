@@ -8,9 +8,9 @@ Builds and runs the full agent graph:
       ├─► portfolio_analysis ─┐
       ├─► market_intel         │
       ├─► risk_assessment      ├─► meta_critic ─► [router] ─► synthesis ─► END
-      ├─► tax_optimization     │                      │
-      ├─► rebalance            │                      └──► hitl_gate ─► synthesis ─► END
-      └─► sentiment_analysis ──┘  (FinBERT news sentiment — 6th parallel agent)
+      ├─► rebalance            │                      │
+      └─► sentiment_analysis ──┘  (FinBERT news sentiment — 5th parallel agent)
+                                                     └──► hitl_gate ─► synthesis ─► END
 
 Router (after meta_critic):
   - needs_revision=True  : route directly to "synthesis" with critique foregrounded
@@ -47,7 +47,6 @@ from .agents.rebalance import RebalanceAgent
 from .agents.risk import RiskAssessmentAgent
 from .agents.sentiment import SentimentAnalysisAgent
 from .agents.synthesizer import ResponseSynthesizer
-from .agents.tax import TaxOptimizationAgent
 from .core.audit import AuditTrail
 from .core.enums import DeploymentSlot
 from .core.models import AgentResult, GraphState, PortfolioHolding, UserProfile
@@ -118,7 +117,6 @@ class VectorRetailAgent:
         portfolio_agent = PortfolioAnalysisAgent(self.llm, audit)
         market_agent = MarketIntelAgent(self.llm, audit)
         risk_agent = RiskAssessmentAgent(self.llm, audit)
-        tax_agent = TaxOptimizationAgent(self.llm, audit)
         rebalance_agent = RebalanceAgent(self.llm, audit)
         sentiment_agent = SentimentAnalysisAgent(self.llm, audit)
         meta_critic = MetaCriticAgent(self.llm, audit)
@@ -150,13 +148,6 @@ class VectorRetailAgent:
             gs = GraphState(**state)
             result = risk_agent.run(gs)
             gs.agent_results["risk_assessment"] = result.model_dump()
-            return gs.model_dump()
-
-        def tax_node(state: dict) -> dict:
-            gs = GraphState(**state)
-            result = tax_agent.run(gs)
-            gs.agent_results["tax_optimization"] = result.model_dump()
-            gs.policy_flags.extend(result.policy_flags)
             return gs.model_dump()
 
         def rebalance_node(state: dict) -> dict:
@@ -247,7 +238,6 @@ class VectorRetailAgent:
             ("portfolio_analysis", portfolio_node),
             ("market_intel", market_node),
             ("risk_assessment", risk_node),
-            ("tax_optimization", tax_node),
             ("rebalance", rebalance_node),
             ("sentiment_analysis", sentiment_node),
             ("meta_critic", meta_critic_node),
@@ -262,7 +252,6 @@ class VectorRetailAgent:
             "portfolio_analysis",
             "market_intel",
             "risk_assessment",
-            "tax_optimization",
             "rebalance",
             "sentiment_analysis",
         ]:
